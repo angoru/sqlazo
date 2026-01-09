@@ -1,4 +1,4 @@
--- url: mysql://user:password@localhost:3306/mydb
+-- url: mysql://myuser:mypassword@localhost:3306/mydb
 
 -- Example: Basic queries
 SHOW TABLES;

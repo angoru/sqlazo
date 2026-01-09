@@ -3,8 +3,6 @@
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from mysql.connector import MySQLConnection
-
 
 @dataclass
 class QueryResult:
@@ -28,12 +26,12 @@ class QueryResult:
             self.rows = []
 
 
-def execute_query(connection: MySQLConnection, query: str) -> QueryResult:
+def execute_query(connection: Any, query: str) -> QueryResult:
     """
     Execute a SQL query and return the result.
     
     Args:
-        connection: Active MySQL connection.
+        connection: Active database connection (MySQL or PostgreSQL).
         query: SQL query to execute.
         
     Returns:
@@ -56,9 +54,11 @@ def execute_query(connection: MySQLConnection, query: str) -> QueryResult:
         else:
             # INSERT/UPDATE/DELETE
             connection.commit()
+            # lastrowid is MySQL-specific, PostgreSQL needs RETURNING clause
+            last_id = getattr(cursor, 'lastrowid', None)
             return QueryResult(
                 affected_rows=cursor.rowcount,
-                last_insert_id=cursor.lastrowid,
+                last_insert_id=last_id,
                 is_select=False,
             )
     finally:

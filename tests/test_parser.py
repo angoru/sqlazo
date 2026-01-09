@@ -137,6 +137,7 @@ SELECT 1;
             "port": 3306,
             "user": "admin",
             "database": "mydb",
+            "db_type": "mysql",
         }
     
     def test_get_connection_params_partial(self):
@@ -145,7 +146,7 @@ SELECT 1;
         
         params = result.get_connection_params()
         
-        assert params == {"host": "localhost"}
+        assert params == {"host": "localhost", "db_type": "mysql"}
     
     def test_url_format_parsing(self):
         """Test parsing URL format connection string."""
@@ -184,3 +185,52 @@ SELECT 1;
         result = parse_file(content)
         
         assert result.password == "p@ssword"
+    
+    def test_postgresql_url_format(self):
+        """Test parsing PostgreSQL URL format connection string."""
+        content = """-- url: postgresql://admin:secret@pghost:5432/pgdb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.host == "pghost"
+        assert result.port == 5432
+        assert result.user == "admin"
+        assert result.password == "secret"
+        assert result.database == "pgdb"
+        assert result.db_type == "postgresql"
+    
+    def test_postgres_url_shorthand(self):
+        """Test parsing 'postgres://' shorthand URL."""
+        content = """-- url: postgres://user:pass@localhost/mydb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "postgresql"
+        assert result.host == "localhost"
+        assert result.database == "mydb"
+    
+    def test_mysql_url_sets_db_type(self):
+        """Test that MySQL URL explicitly sets db_type."""
+        content = """-- url: mysql://root:pass@localhost/testdb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "mysql"
+    
+    def test_default_db_type_is_mysql(self):
+        """Test that default db_type is mysql when using key-value format."""
+        content = """-- host: localhost
+-- db: testdb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "mysql"
+

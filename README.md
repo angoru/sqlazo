@@ -33,6 +33,14 @@ pip install -e .
 SELECT * FROM users LIMIT 10;
 ```
 
+Or with PostgreSQL:
+
+```sql
+-- url: postgresql://user:pass@localhost:5432/mydb
+
+SELECT * FROM users LIMIT 10;
+```
+
 ```bash
 sqlazo query.sql
 ```
@@ -43,8 +51,16 @@ sqlazo query.sql
 
 ### URL Format (recommended)
 
+**MySQL:**
 ```sql
 -- url: mysql://user:password@localhost:3306/database
+
+SELECT * FROM users;
+```
+
+**PostgreSQL:**
+```sql
+-- url: postgresql://user:password@localhost:5432/database
 
 SELECT * FROM users;
 ```

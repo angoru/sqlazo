@@ -1,12 +1,15 @@
 """Database connection management with config priority."""
 
 import os
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Any
 
 import mysql.connector
 from mysql.connector import MySQLConnection
 from mysql.connector.errors import Error as MySQLError
+
+import psycopg2
+from psycopg2.extensions import connection as PostgreSQLConnection
 
 
 @dataclass
@@ -14,10 +17,16 @@ class ConnectionConfig:
     """Database connection configuration."""
     
     host: str = "localhost"
-    port: int = 3306
+    port: Optional[int] = None  # Will default based on db_type
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
+    db_type: str = "mysql"  # "mysql" or "postgresql"
+    
+    def __post_init__(self):
+        """Set default port based on database type if not specified."""
+        if self.port is None:
+            self.port = 5432 if self.db_type == "postgresql" else 3306
     
     @classmethod
     def from_env(cls) -> "ConnectionConfig":
@@ -37,6 +46,11 @@ class ConnectionConfig:
             config.password = env_password
         if env_db := os.environ.get("SQLAZO_DB"):
             config.database = env_db
+        if env_db_type := os.environ.get("SQLAZO_DB_TYPE"):
+            config.db_type = env_db_type.lower()
+            # Update port if not explicitly set
+            if not os.environ.get("SQLAZO_PORT"):
+                config.port = 5432 if config.db_type == "postgresql" else 3306
             
         return config
     
@@ -50,12 +64,20 @@ class ConnectionConfig:
         Returns:
             New ConnectionConfig with merged values.
         """
+        new_db_type = file_params.get("db_type", self.db_type)
+        new_port = file_params.get("port", self.port)
+        
+        # If db_type changed and port wasn't explicitly set, use default for new db_type
+        if new_db_type != self.db_type and "port" not in file_params:
+            new_port = 5432 if new_db_type == "postgresql" else 3306
+        
         return ConnectionConfig(
             host=file_params.get("host", self.host),
-            port=file_params.get("port", self.port),
+            port=new_port,
             user=file_params.get("user", self.user),
             password=file_params.get("password", self.password),
             database=file_params.get("database", self.database),
+            db_type=new_db_type,
         )
     
     def validate(self) -> list[str]:
@@ -74,7 +96,7 @@ class ConnectionConfig:
             errors.append("Password not specified. Set SQLAZO_PASSWORD environment variable.")
         return errors
     
-    def to_connect_kwargs(self) -> dict:
+    def to_mysql_kwargs(self) -> dict:
         """Convert to kwargs for mysql.connector.connect()."""
         kwargs = {
             "host": self.host,
@@ -87,9 +109,23 @@ class ConnectionConfig:
         if self.database:
             kwargs["database"] = self.database
         return kwargs
+    
+    def to_psycopg_kwargs(self) -> dict:
+        """Convert to kwargs for psycopg2.connect()."""
+        kwargs = {
+            "host": self.host,
+            "port": self.port,
+        }
+        if self.user:
+            kwargs["user"] = self.user
+        if self.password:
+            kwargs["password"] = self.password
+        if self.database:
+            kwargs["dbname"] = self.database  # psycopg2 uses 'dbname' not 'database'
+        return kwargs
 
 
-def get_connection(config: ConnectionConfig) -> MySQLConnection:
+def get_connection(config: ConnectionConfig) -> Any:
     """
     Create a database connection.
     
@@ -97,9 +133,13 @@ def get_connection(config: ConnectionConfig) -> MySQLConnection:
         config: Connection configuration.
         
     Returns:
-        MySQL connection object.
+        Database connection object (MySQL or PostgreSQL).
         
     Raises:
-        MySQLError: If connection fails.
+        MySQLError: If MySQL connection fails.
+        psycopg2.Error: If PostgreSQL connection fails.
     """
-    return mysql.connector.connect(**config.to_connect_kwargs())
+    if config.db_type == "postgresql":
+        return psycopg2.connect(**config.to_psycopg_kwargs())
+    else:
+        return mysql.connector.connect(**config.to_mysql_kwargs())

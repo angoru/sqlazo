@@ -16,6 +16,7 @@ class ParsedFile:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
+    db_type: str = "mysql"  # "mysql" or "postgresql"
     
     # The SQL query content
     query: str = ""
@@ -33,6 +34,8 @@ class ParsedFile:
             params["password"] = self.password
         if self.database:
             params["database"] = self.database
+        if self.db_type:
+            params["db_type"] = self.db_type
         return params
 
 
@@ -56,15 +59,23 @@ def parse_url(url: str) -> dict:
     Parse a database connection URL.
     
     Format: mysql://user:password@host:port/database
+            postgresql://user:password@host:port/database
     
     Args:
         url: Connection URL string.
         
     Returns:
-        Dict with connection parameters.
+        Dict with connection parameters including db_type.
     """
     parsed = urlparse(url)
     params = {}
+    
+    # Detect database type from scheme
+    scheme = parsed.scheme.lower()
+    if scheme in ("postgresql", "postgres"):
+        params["db_type"] = "postgresql"
+    else:
+        params["db_type"] = "mysql"
     
     if parsed.hostname:
         params["host"] = parsed.hostname

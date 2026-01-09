@@ -1,9 +1,7 @@
 """Database schema introspection for autocomplete."""
 
 from dataclasses import dataclass, field
-from typing import Optional
-
-from mysql.connector import MySQLConnection
+from typing import Any
 
 
 @dataclass
@@ -14,7 +12,7 @@ class ColumnInfo:
     data_type: str
     is_nullable: bool = True
     column_key: str = ""  # PRI, UNI, MUL, or empty
-    
+
 
 @dataclass
 class TableInfo:
@@ -51,17 +49,26 @@ class SchemaInfo:
         }
 
 
-def get_schema(connection: MySQLConnection, database: str) -> SchemaInfo:
+def get_schema(connection: Any, database: str, db_type: str = "mysql") -> SchemaInfo:
     """
     Introspect database schema to get tables and columns.
     
     Args:
-        connection: Active MySQL connection.
+        connection: Active database connection.
         database: Database name to introspect.
+        db_type: Database type ("mysql" or "postgresql").
         
     Returns:
         SchemaInfo with tables and their columns.
     """
+    if db_type == "postgresql":
+        return _get_schema_postgresql(connection, database)
+    else:
+        return _get_schema_mysql(connection, database)
+
+
+def _get_schema_mysql(connection: Any, database: str) -> SchemaInfo:
+    """MySQL-specific schema introspection."""
     schema = SchemaInfo(database=database)
     cursor = connection.cursor()
     
@@ -86,6 +93,78 @@ def get_schema(connection: MySQLConnection, database: str) -> SchemaInfo:
                 WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
                 ORDER BY ORDINAL_POSITION
             """, (database, table_name))
+            
+            for col_name, data_type, is_nullable, column_key in cursor.fetchall():
+                column = ColumnInfo(
+                    name=col_name,
+                    data_type=data_type,
+                    is_nullable=(is_nullable == "YES"),
+                    column_key=column_key or "",
+                )
+                table.columns.append(column)
+            
+            schema.tables.append(table)
+        
+        return schema
+        
+    finally:
+        cursor.close()
+
+
+def _get_schema_postgresql(connection: Any, database: str) -> SchemaInfo:
+    """PostgreSQL-specific schema introspection."""
+    schema = SchemaInfo(database=database)
+    cursor = connection.cursor()
+    
+    try:
+        # Get all tables and views from public schema
+        cursor.execute("""
+            SELECT table_name, table_type
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+        """)
+        
+        tables_data = cursor.fetchall()
+        
+        for table_name, table_type in tables_data:
+            table = TableInfo(name=table_name, table_type=table_type)
+            
+            # Get columns for this table with constraint info
+            cursor.execute("""
+                SELECT 
+                    c.column_name,
+                    c.data_type,
+                    c.is_nullable,
+                    CASE 
+                        WHEN pk.column_name IS NOT NULL THEN 'PRI'
+                        WHEN uq.column_name IS NOT NULL THEN 'UNI'
+                        ELSE ''
+                    END as column_key
+                FROM information_schema.columns c
+                LEFT JOIN (
+                    SELECT kcu.column_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        AND tc.table_schema = kcu.table_schema
+                    WHERE tc.constraint_type = 'PRIMARY KEY'
+                        AND tc.table_schema = 'public'
+                        AND tc.table_name = %s
+                ) pk ON c.column_name = pk.column_name
+                LEFT JOIN (
+                    SELECT kcu.column_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        AND tc.table_schema = kcu.table_schema
+                    WHERE tc.constraint_type = 'UNIQUE'
+                        AND tc.table_schema = 'public'
+                        AND tc.table_name = %s
+                ) uq ON c.column_name = uq.column_name
+                WHERE c.table_schema = 'public' AND c.table_name = %s
+                ORDER BY c.ordinal_position
+            """, (table_name, table_name, table_name))
             
             for col_name, data_type, is_nullable, column_key in cursor.fetchall():
                 column = ColumnInfo(
