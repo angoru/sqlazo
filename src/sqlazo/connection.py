@@ -1,6 +1,7 @@
 """Database connection management with config priority."""
 
 import os
+import sqlite3
 from dataclasses import dataclass
 from typing import Optional, Any
 
@@ -21,11 +22,11 @@ class ConnectionConfig:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
-    db_type: str = "mysql"  # "mysql" or "postgresql"
+    db_type: str = "mysql"  # "mysql", "postgresql", or "sqlite"
     
     def __post_init__(self):
         """Set default port based on database type if not specified."""
-        if self.port is None:
+        if self.port is None and self.db_type != "sqlite":
             self.port = 5432 if self.db_type == "postgresql" else 3306
     
     @classmethod
@@ -48,8 +49,8 @@ class ConnectionConfig:
             config.database = env_db
         if env_db_type := os.environ.get("SQLAZO_DB_TYPE"):
             config.db_type = env_db_type.lower()
-            # Update port if not explicitly set
-            if not os.environ.get("SQLAZO_PORT"):
+            # Update port if not explicitly set (SQLite doesn't use ports)
+            if not os.environ.get("SQLAZO_PORT") and config.db_type != "sqlite":
                 config.port = 5432 if config.db_type == "postgresql" else 3306
             
         return config
@@ -68,7 +69,7 @@ class ConnectionConfig:
         new_port = file_params.get("port", self.port)
         
         # If db_type changed and port wasn't explicitly set, use default for new db_type
-        if new_db_type != self.db_type and "port" not in file_params:
+        if new_db_type != self.db_type and "port" not in file_params and new_db_type != "sqlite":
             new_port = 5432 if new_db_type == "postgresql" else 3306
         
         return ConnectionConfig(
@@ -88,6 +89,12 @@ class ConnectionConfig:
             List of error messages. Empty if valid.
         """
         errors = []
+        # SQLite only needs database path, no user/password
+        if self.db_type == "sqlite":
+            if not self.database:
+                errors.append("Database not specified. Set SQLAZO_DB or add '-- db: xxx' or use URL format.")
+            return errors
+        
         if not self.user:
             errors.append("User not specified. Set SQLAZO_USER or add '-- user: xxx' to file header.")
         if not self.database:
@@ -139,7 +146,9 @@ def get_connection(config: ConnectionConfig) -> Any:
         MySQLError: If MySQL connection fails.
         psycopg2.Error: If PostgreSQL connection fails.
     """
-    if config.db_type == "postgresql":
+    if config.db_type == "sqlite":
+        return sqlite3.connect(config.database)
+    elif config.db_type == "postgresql":
         return psycopg2.connect(**config.to_psycopg_kwargs())
     else:
         return mysql.connector.connect(**config.to_mysql_kwargs())

@@ -56,12 +56,14 @@ def get_schema(connection: Any, database: str, db_type: str = "mysql") -> Schema
     Args:
         connection: Active database connection.
         database: Database name to introspect.
-        db_type: Database type ("mysql" or "postgresql").
+        db_type: Database type ("mysql", "postgresql", or "sqlite").
         
     Returns:
         SchemaInfo with tables and their columns.
     """
-    if db_type == "postgresql":
+    if db_type == "sqlite":
+        return _get_schema_sqlite(connection, database)
+    elif db_type == "postgresql":
         return _get_schema_postgresql(connection, database)
     else:
         return _get_schema_mysql(connection, database)
@@ -172,6 +174,53 @@ def _get_schema_postgresql(connection: Any, database: str) -> SchemaInfo:
                     data_type=data_type,
                     is_nullable=(is_nullable == "YES"),
                     column_key=column_key or "",
+                )
+                table.columns.append(column)
+            
+            schema.tables.append(table)
+        
+        return schema
+        
+    finally:
+        cursor.close()
+
+
+def _get_schema_sqlite(connection: Any, database: str) -> SchemaInfo:
+    """SQLite-specific schema introspection."""
+    schema = SchemaInfo(database=database)
+    cursor = connection.cursor()
+    
+    try:
+        # Get all tables (exclude sqlite internal tables)
+        cursor.execute("""
+            SELECT name, type
+            FROM sqlite_master
+            WHERE type IN ('table', 'view')
+            AND name NOT LIKE 'sqlite_%'
+            ORDER BY name
+        """)
+        
+        tables_data = cursor.fetchall()
+        
+        for table_name, table_type in tables_data:
+            normalized_type = "BASE TABLE" if table_type == "table" else "VIEW"
+            table = TableInfo(name=table_name, table_type=normalized_type)
+            
+            # Get columns for this table using PRAGMA
+            # PRAGMA returns: cid, name, type, notnull, dflt_value, pk
+            cursor.execute(f"PRAGMA table_info('{table_name}')")
+            
+            for row in cursor.fetchall():
+                col_name = row[1]
+                data_type = row[2]
+                is_not_null = row[3]
+                is_pk = row[5]
+                
+                column = ColumnInfo(
+                    name=col_name,
+                    data_type=data_type,
+                    is_nullable=(is_not_null == 0),
+                    column_key="PRI" if is_pk else "",
                 )
                 table.columns.append(column)
             

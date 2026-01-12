@@ -60,6 +60,8 @@ def parse_url(url: str) -> dict:
     
     Format: mysql://user:password@host:port/database
             postgresql://user:password@host:port/database
+            sqlite:///path/to/database.db
+            sqlite://:memory:
     
     Args:
         url: Connection URL string.
@@ -74,6 +76,17 @@ def parse_url(url: str) -> dict:
     scheme = parsed.scheme.lower()
     if scheme in ("postgresql", "postgres"):
         params["db_type"] = "postgresql"
+    elif scheme == "sqlite":
+        params["db_type"] = "sqlite"
+        # SQLite uses file path as database, not host/user/password
+        # Handle :memory: special case
+        if parsed.netloc == ":memory:" or parsed.path == "/:memory:":
+            params["database"] = ":memory:"
+        else:
+            # For sqlite:///path/to/db, the path is the database file
+            # netloc is empty, path contains the full path
+            params["database"] = parsed.path if parsed.path else parsed.netloc
+        return params
     else:
         params["db_type"] = "mysql"
     

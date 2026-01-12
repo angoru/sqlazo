@@ -233,4 +233,39 @@ SELECT 1;
         result = parse_file(content)
         
         assert result.db_type == "mysql"
+    
+    def test_sqlite_url_format(self):
+        """Test parsing SQLite URL format connection string."""
+        content = """-- url: sqlite:///path/to/database.db
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "sqlite"
+        assert result.database == "/path/to/database.db"
+        assert result.host is None
+        assert result.user is None
+    
+    def test_sqlite_memory_url(self):
+        """Test parsing SQLite in-memory URL."""
+        content = """-- url: sqlite://:memory:
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "sqlite"
+        assert result.database == ":memory:"
+    
+    def test_sqlite_relative_path_url(self):
+        """Test parsing SQLite URL with relative path."""
+        content = """-- url: sqlite:///./mydb.sqlite
+
+SELECT 1;
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "sqlite"
+        assert result.database == "/./mydb.sqlite"
 

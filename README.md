@@ -41,6 +41,14 @@ Or with PostgreSQL:
 SELECT * FROM users LIMIT 10;
 ```
 
+Or with SQLite:
+
+```sql
+-- url: sqlite:///./mydb.sqlite
+
+SELECT * FROM users LIMIT 10;
+```
+
 ```bash
 sqlazo query.sql
 ```
@@ -61,6 +69,14 @@ SELECT * FROM users;
 **PostgreSQL:**
 ```sql
 -- url: postgresql://user:password@localhost:5432/database
+
+SELECT * FROM users;
+```
+
+**SQLite:**
+```sql
+-- url: sqlite:///path/to/database.db
+-- or for in-memory: sqlite://:memory:
 
 SELECT * FROM users;
 ```
