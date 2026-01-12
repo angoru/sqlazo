@@ -111,13 +111,27 @@ function M.get_cmd()
   return M.config.python_cmd .. " -m sqlazo"
 end
 
+-- Check if a line is a header comment (-- key: value or // key: value)
+function M.is_header_line(line)
+  local trimmed = line:match("^%s*(.-)%s*$")
+  -- SQL-style: -- key: value
+  if trimmed:match("^%-%-.*:") then
+    return true
+  end
+  -- JavaScript-style: // key: value (for MongoDB)
+  if trimmed:match("^//.*:") then
+    return true
+  end
+  return false
+end
+
 -- Extract header (connection info) from buffer
 function M.get_header(lines)
   local header_lines = {}
   for _, line in ipairs(lines) do
     local trimmed = line:match("^%s*(.-)%s*$")
-    if trimmed:match("^%-%-.*:") then
-      -- This is a header line (-- key: value)
+    if M.is_header_line(line) then
+      -- This is a header line (-- key: value or // key: value)
       table.insert(header_lines, line)
     elseif trimmed == "" then
       -- Empty line, might end header
@@ -145,7 +159,7 @@ function M.get_query_at_cursor(lines)
     if trimmed == "" then
       query_start = i + 1
       break
-    elseif trimmed:match("^%-%-.*:") then
+    elseif M.is_header_line(line) then
       -- Header line, query starts after
       query_start = i + 1
       break
@@ -172,9 +186,8 @@ function M.get_query_at_cursor(lines)
   local query_lines = {}
   for i = query_start, query_end do
     local line = lines[i]
-    local trimmed = line:match("^%s*(.-)%s*$")
     -- Skip comment-only lines that look like headers
-    if not trimmed:match("^%-%-.*:") then
+    if not M.is_header_line(line) then
       table.insert(query_lines, line)
     end
   end

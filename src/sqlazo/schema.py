@@ -56,7 +56,7 @@ def get_schema(connection: Any, database: str, db_type: str = "mysql") -> Schema
     Args:
         connection: Active database connection.
         database: Database name to introspect.
-        db_type: Database type ("mysql", "postgresql", or "sqlite").
+        db_type: Database type ("mysql", "postgresql", "sqlite", or "mongodb").
         
     Returns:
         SchemaInfo with tables and their columns.
@@ -65,6 +65,8 @@ def get_schema(connection: Any, database: str, db_type: str = "mysql") -> Schema
         return _get_schema_sqlite(connection, database)
     elif db_type == "postgresql":
         return _get_schema_postgresql(connection, database)
+    elif db_type == "mongodb":
+        return _get_schema_mongodb(connection, database)
     else:
         return _get_schema_mysql(connection, database)
 
@@ -230,3 +232,81 @@ def _get_schema_sqlite(connection: Any, database: str) -> SchemaInfo:
         
     finally:
         cursor.close()
+
+
+def _get_schema_mongodb(connection: Any, database: str) -> SchemaInfo:
+    """
+    MongoDB-specific schema introspection.
+    
+    Args:
+        connection: MongoDB database object (from MongoClient).
+        database: Database name (for labeling).
+        
+    Note:
+        MongoDB is schemaless, so we sample documents to infer field structure.
+    """
+    schema = SchemaInfo(database=database)
+    
+    # Get list of collections (MongoDB equivalent of tables)
+    collection_names = connection.list_collection_names()
+    
+    for coll_name in sorted(collection_names):
+        # Skip system collections
+        if coll_name.startswith('system.'):
+            continue
+        
+        table = TableInfo(name=coll_name, table_type="COLLECTION")
+        
+        # Sample a few documents to infer field structure
+        # We sample up to 10 documents to get a good picture of fields
+        collection = connection[coll_name]
+        sample_docs = list(collection.find().limit(10))
+        
+        # Collect all field names and their types
+        field_types = {}
+        for doc in sample_docs:
+            for key, value in doc.items():
+                type_name = _mongo_type_name(value)
+                if key not in field_types:
+                    field_types[key] = type_name
+                elif field_types[key] != type_name and type_name != "null":
+                    # Multiple types detected, mark as mixed
+                    if field_types[key] != "mixed":
+                        field_types[key] = "mixed"
+        
+        # Convert to ColumnInfo
+        for field_name, field_type in field_types.items():
+            column = ColumnInfo(
+                name=field_name,
+                data_type=field_type,
+                is_nullable=True,  # MongoDB fields are always nullable
+                column_key="PRI" if field_name == "_id" else "",
+            )
+            table.columns.append(column)
+        
+        schema.tables.append(table)
+    
+    return schema
+
+
+def _mongo_type_name(value: Any) -> str:
+    """Get a type name for a MongoDB value."""
+    if value is None:
+        return "null"
+    
+    type_map = {
+        str: "string",
+        int: "int",
+        float: "double",
+        bool: "bool",
+        list: "array",
+        dict: "object",
+    }
+    
+    for py_type, mongo_type in type_map.items():
+        if isinstance(value, py_type):
+            return mongo_type
+    
+    # Handle ObjectId and other BSON types
+    type_name = type(value).__name__
+    return type_name.lower()

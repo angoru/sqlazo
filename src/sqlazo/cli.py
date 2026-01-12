@@ -5,7 +5,7 @@ import json
 import sys
 
 from sqlazo.connection import ConnectionConfig, get_connection
-from sqlazo.executor import execute_query
+from sqlazo.executor import execute_query, execute_mongo_query
 from sqlazo.formatter import OutputFormat, format_result
 from sqlazo.parser import parse_file, parse_file_path
 from sqlazo.schema import get_schema
@@ -71,24 +71,51 @@ def main():
         
         # Verbose output
         if args.verbose:
-            print(f"-- Connecting to {config.host}:{config.port}", file=sys.stderr)
+            if config.db_type == "mongodb":
+                print(f"-- Connecting to MongoDB: {config.host}:{config.port}", file=sys.stderr)
+            else:
+                print(f"-- Connecting to {config.host}:{config.port}", file=sys.stderr)
             print(f"-- Database: {config.database}", file=sys.stderr)
-            print(f"-- User: {config.user}", file=sys.stderr)
+            if config.user:
+                print(f"-- User: {config.user}", file=sys.stderr)
             print(f"-- Executing query...", file=sys.stderr)
         
         # Connect and execute
         connection = get_connection(config)
+        
         try:
-            # Schema mode: output tables/columns as JSON
-            if args.schema:
-                schema = get_schema(connection, config.database)
-                print(json.dumps(schema.to_dict(), indent=2))
+            # Handle MongoDB differently (returns tuple of client, db)
+            if config.db_type == "mongodb":
+                client, db = connection
+                
+                if args.schema:
+                    schema = get_schema(db, config.database, config.db_type)
+                    print(json.dumps(schema.to_dict(), indent=2))
+                else:
+                    result = execute_mongo_query(db, parsed.query)
+                    output = format_result(result, args.format)
+                    print(output)
+                
+                client.close()
             else:
-                result = execute_query(connection, parsed.query)
-                output = format_result(result, args.format)
-                print(output)
-        finally:
-            connection.close()
+                # SQL databases
+                if args.schema:
+                    schema = get_schema(connection, config.database, config.db_type)
+                    print(json.dumps(schema.to_dict(), indent=2))
+                else:
+                    result = execute_query(connection, parsed.query)
+                    output = format_result(result, args.format)
+                    print(output)
+                
+                connection.close()
+            
+        except Exception as e:
+            # Ensure connection is closed on error
+            if config.db_type == "mongodb":
+                connection[0].close()
+            else:
+                connection.close()
+            raise
             
     except FileNotFoundError:
         print(f"Error: File not found: {args.file}", file=sys.stderr)
@@ -100,3 +127,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

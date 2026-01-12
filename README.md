@@ -49,8 +49,17 @@ Or with SQLite:
 SELECT * FROM users LIMIT 10;
 ```
 
+Or with MongoDB:
+
+```javascript
+// url: mongodb://localhost:27017/mydb
+
+db.users.find({})
+```
+
 ```bash
-sqlazo query.sql
+sqlazo query.sql          # SQL databases
+sqlazo mongo_query.js     # MongoDB
 ```
 
 ---
@@ -80,6 +89,25 @@ SELECT * FROM users;
 
 SELECT * FROM users;
 ```
+
+**MongoDB:**
+```javascript
+// url: mongodb://localhost:27017/database
+// or with auth: mongodb://user:pass@localhost:27017/database
+
+db.users.find({})
+```
+
+**Supported MongoDB Operations:**
+| Operation | Example |
+|-----------|----------------------------------------------------------------|
+| Find | `db.collection.find({})` |
+| Find One | `db.collection.findOne({"name": "Alice"})` |
+| Insert | `db.collection.insertOne({"name": "Bob"})` |
+| Update | `db.collection.updateOne({"name": "Bob"}, {"$set": {"age": 30}})` |
+| Delete | `db.collection.deleteOne({"name": "Bob"})` |
+| Count | `db.collection.countDocuments({})` |
+| Aggregate | `db.collection.aggregate([{"$match": {}}])` |
 
 ### Key-Value Format
 

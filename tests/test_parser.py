@@ -268,4 +268,42 @@ SELECT 1;
         
         assert result.db_type == "sqlite"
         assert result.database == "/./mydb.sqlite"
+    
+    def test_mongodb_url_format(self):
+        """Test parsing MongoDB URL format connection string."""
+        content = """-- url: mongodb://admin:secret@mongohost:27017/testdb
 
+db.users.find({})
+"""
+        result = parse_file(content)
+        
+        assert result.host == "mongohost"
+        assert result.port == 27017
+        assert result.user == "admin"
+        assert result.password == "secret"
+        assert result.database == "testdb"
+        assert result.db_type == "mongodb"
+    
+    def test_mongodb_srv_url_format(self):
+        """Test parsing MongoDB SRV URL format."""
+        content = """-- url: mongodb+srv://user:pass@cluster.mongodb.net/mydb
+
+db.users.find({})
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "mongodb"
+        assert result.host == "cluster.mongodb.net"
+        assert result.database == "mydb"
+    
+    def test_mongodb_url_stores_connection_string(self):
+        """Test that MongoDB URL is stored for pymongo."""
+        content = """-- url: mongodb://localhost:27017/testdb
+
+db.users.find({})
+"""
+        result = parse_file(content)
+        params = result.get_connection_params()
+        
+        assert "connection_string" in params
+        assert params["connection_string"] == "mongodb://localhost:27017/testdb"

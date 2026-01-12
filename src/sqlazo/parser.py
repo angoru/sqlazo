@@ -16,7 +16,8 @@ class ParsedFile:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
-    db_type: str = "mysql"  # "mysql" or "postgresql"
+    db_type: str = "mysql"  # "mysql", "postgresql", "sqlite", or "mongodb"
+    connection_string: Optional[str] = None  # For MongoDB connection strings
     
     # The SQL query content
     query: str = ""
@@ -36,6 +37,8 @@ class ParsedFile:
             params["database"] = self.database
         if self.db_type:
             params["db_type"] = self.db_type
+        if self.connection_string:
+            params["connection_string"] = self.connection_string
         return params
 
 
@@ -87,6 +90,23 @@ def parse_url(url: str) -> dict:
             # netloc is empty, path contains the full path
             params["database"] = parsed.path if parsed.path else parsed.netloc
         return params
+    elif scheme in ("mongodb", "mongodb+srv"):
+        params["db_type"] = "mongodb"
+        # MongoDB uses same host/port/user/password as SQL databases
+        # but also supports mongodb+srv:// for DNS seedlist
+        if parsed.hostname:
+            params["host"] = parsed.hostname
+        if parsed.port:
+            params["port"] = parsed.port
+        if parsed.username:
+            params["user"] = unquote(parsed.username)
+        if parsed.password:
+            params["password"] = unquote(parsed.password)
+        if parsed.path and parsed.path != "/":
+            params["database"] = parsed.path.lstrip("/")
+        # Store the full URL for MongoDB (pymongo prefers connection strings)
+        params["connection_string"] = url
+        return params
     else:
         params["db_type"] = "mysql"
     
@@ -129,16 +149,18 @@ def parse_file(content: str) -> ParsedFile:
     query_lines = []
     header_ended = False
     
-    # Pattern to match header comments: -- key: value
-    header_pattern = re.compile(r"^--\s*(\w+)\s*:\s*(.+?)\s*$")
+    # Patterns to match header comments: -- key: value OR // key: value (for MongoDB)
+    sql_header_pattern = re.compile(r"^--\s*(\w+)\s*:\s*(.+?)\s*$")
+    js_header_pattern = re.compile(r"^//\s*(\w+)\s*:\s*(.+?)\s*$")
     
     for line in lines:
         if header_ended:
             query_lines.append(line)
             continue
             
-        # Check if this is a header comment
-        match = header_pattern.match(line.strip())
+        # Check if this is a header comment (SQL or JS style)
+        stripped = line.strip()
+        match = sql_header_pattern.match(stripped) or js_header_pattern.match(stripped)
         if match:
             key = match.group(1).lower()
             value = match.group(2)
@@ -162,11 +184,11 @@ def parse_file(content: str) -> ParsedFile:
                 # This could be part of the query, so end header
                 header_ended = True
                 query_lines.append(line)
-        elif line.strip().startswith("--"):
+        elif stripped.startswith("--") or stripped.startswith("//"):
             # Other comment (no key:value format) - part of query
             header_ended = True
             query_lines.append(line)
-        elif line.strip() == "":
+        elif stripped == "":
             # Empty line - marks end of header section
             header_ended = True
         else:
