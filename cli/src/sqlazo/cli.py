@@ -5,10 +5,10 @@ import json
 import sys
 
 from sqlazo.connection import ConnectionConfig, get_connection
-from sqlazo.executor import execute_query, execute_mongo_query
 from sqlazo.formatter import OutputFormat, format_result
 from sqlazo.parser import parse_file, parse_file_path
 from sqlazo.schema import get_schema
+from sqlazo.databases import get_handler_for_db_type
 
 
 def main():
@@ -71,51 +71,46 @@ def main():
         
         # Verbose output
         if args.verbose:
-            if config.db_type == "mongodb":
-                print(f"-- Connecting to MongoDB: {config.host}:{config.port}", file=sys.stderr)
-            else:
-                print(f"-- Connecting to {config.host}:{config.port}", file=sys.stderr)
-            print(f"-- Database: {config.database}", file=sys.stderr)
+            db_info = f"{config.db_type.upper()}: {config.host}"
+            if config.port:
+                db_info += f":{config.port}"
+            if config.database is not None:
+                db_info += f"/{config.database}"
+            print(f"-- Connecting to {db_info}", file=sys.stderr)
             if config.user:
                 print(f"-- User: {config.user}", file=sys.stderr)
             print(f"-- Executing query...", file=sys.stderr)
+        
+        # Get handler for this database type
+        handler = get_handler_for_db_type(config.db_type)
+        if not handler:
+            print(f"Error: Unknown database type: {config.db_type}", file=sys.stderr)
+            sys.exit(1)
         
         # Connect and execute
         connection = get_connection(config)
         
         try:
-            # Handle MongoDB differently (returns tuple of client, db)
-            if config.db_type == "mongodb":
-                client, db = connection
-                
-                if args.schema:
-                    schema = get_schema(db, config.database, config.db_type)
-                    print(json.dumps(schema.to_dict(), indent=2))
+            if args.schema:
+                # Schema handling
+                schema = handler.get_schema(connection, config.database)
+                if schema:
+                    print(json.dumps(schema, indent=2))
                 else:
-                    result = execute_mongo_query(db, parsed.query)
-                    output = format_result(result, args.format)
-                    print(output)
-                
-                client.close()
-            else:
-                # SQL databases
-                if args.schema:
+                    # Fallback to old schema module for SQL databases
                     schema = get_schema(connection, config.database, config.db_type)
                     print(json.dumps(schema.to_dict(), indent=2))
-                else:
-                    result = execute_query(connection, parsed.query)
-                    output = format_result(result, args.format)
-                    print(output)
-                
-                connection.close()
+            else:
+                # Execute query
+                result = handler.execute_query(connection, parsed.query)
+                output = format_result(result, args.format)
+                print(output)
             
         except Exception as e:
-            # Ensure connection is closed on error
-            if config.db_type == "mongodb":
-                connection[0].close()
-            else:
-                connection.close()
+            handler.close_connection(connection)
             raise
+        finally:
+            handler.close_connection(connection)
             
     except FileNotFoundError:
         print(f"Error: File not found: {args.file}", file=sys.stderr)
@@ -127,4 +122,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

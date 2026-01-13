@@ -1,21 +1,30 @@
 # sqlazo
 
-Execute SQL queries from files with connection headers — designed for Neovim.
+Execute SQL queries from files with connection headers.
 
-## Installation
+## Components
+
+This project contains two components:
+
+| Component | Description |
+|-----------|-------------|
+| [cli/](./cli/) | Python CLI tool - `pip install -e ./cli` |
+| [nvim/](./nvim/) | Neovim plugin - add to runtimepath |
+
+## Quick Start
+
+### CLI
 
 ```bash
-cd /path/to/sqlazo
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+cd cli && pip install -e .
+sqlazo query.sql
 ```
 
-**Neovim** (lazy.nvim):
+### Neovim (lazy.nvim)
 
 ```lua
 {
-  dir = "/path/to/sqlazo",
+  dir = "/path/to/sqlazo/nvim",
   ft = "sql",
   config = function()
     require("sqlazo").setup()
@@ -23,237 +32,17 @@ pip install -e .
 }
 ```
 
----
+## Supported Databases
 
-## Quick Start
+- MySQL (`mysql://`)
+- PostgreSQL (`postgresql://`)
+- SQLite (`sqlite:///`)
+- MongoDB (`mongodb://`)
+- Redis (`redis://`)
 
-```sql
--- url: mysql://user:pass@localhost:3306/mydb
+## Examples
 
-SELECT * FROM users LIMIT 10;
-```
-
-Or with PostgreSQL:
-
-```sql
--- url: postgresql://user:pass@localhost:5432/mydb
-
-SELECT * FROM users LIMIT 10;
-```
-
-Or with SQLite:
-
-```sql
--- url: sqlite:///./mydb.sqlite
-
-SELECT * FROM users LIMIT 10;
-```
-
-Or with MongoDB:
-
-```javascript
-// url: mongodb://localhost:27017/mydb
-
-db.users.find({})
-```
-
-```bash
-sqlazo query.sql          # SQL databases
-sqlazo mongo_query.js     # MongoDB
-```
-
----
-
-## File Format
-
-### URL Format (recommended)
-
-**MySQL:**
-```sql
--- url: mysql://user:password@localhost:3306/database
-
-SELECT * FROM users;
-```
-
-**PostgreSQL:**
-```sql
--- url: postgresql://user:password@localhost:5432/database
-
-SELECT * FROM users;
-```
-
-**SQLite:**
-```sql
--- url: sqlite:///path/to/database.db
--- or for in-memory: sqlite://:memory:
-
-SELECT * FROM users;
-```
-
-**MongoDB:**
-```javascript
-// url: mongodb://localhost:27017/database
-// or with auth: mongodb://user:pass@localhost:27017/database
-
-db.users.find({})
-```
-
-**Supported MongoDB Operations:**
-| Operation | Example |
-|-----------|----------------------------------------------------------------|
-| Find | `db.collection.find({})` |
-| Find One | `db.collection.findOne({"name": "Alice"})` |
-| Insert | `db.collection.insertOne({"name": "Bob"})` |
-| Update | `db.collection.updateOne({"name": "Bob"}, {"$set": {"age": 30}})` |
-| Delete | `db.collection.deleteOne({"name": "Bob"})` |
-| Count | `db.collection.countDocuments({})` |
-| Aggregate | `db.collection.aggregate([{"$match": {}}])` |
-
-### Key-Value Format
-
-```sql
--- host: localhost
--- user: myuser
--- password: mypass
--- db: mydb
-
-SELECT * FROM users;
-```
-
----
-
-## CLI Usage
-
-```bash
-sqlazo file.sql              # Table format (default)
-sqlazo file.sql -f record    # One field per line (good for wide tables)
-sqlazo file.sql -f json      # JSON output
-sqlazo file.sql -f csv       # CSV output
-sqlazo file.sql -v           # Verbose (show connection info)
-cat file.sql | sqlazo -      # Read from stdin
-```
-
----
-
-## Neovim Commands
-
-| Command                   | Description                                 |
-| ------------------------- | ------------------------------------------- |
-| `:SqlazoRun`              | Execute query at cursor → float             |
-| `:SqlazoRunRecord`        | Execute with record format                  |
-| `:SqlazoRunVertical`      | Execute → vertical split                    |
-| `:SqlazoRunHorizontal`    | Execute → horizontal split                  |
-| `:SqlazoRunInline [N]`    | Insert first N rows as comments below query |
-| `:SqlazoRunAllInline [N]` | Run all queries, update inline results      |
-| `:SqlazoConsole`          | Open interactive SQL console                |
-
----
-
-## Interactive Console
-
-Open with `:SqlazoConsole`:
-
-```
-┌─────────────────────────────────────┐
-│  SQL Query (editable)               │
-│  -- url: mysql://...                │
-│  SELECT * FROM users;               │
-└─────────────────────────────────────┘
-┌─────────────────────────────────────┐
-│  Results (readonly)                 │
-│  +----+-------+                     │
-│  | id | name  |                     │
-└─────────────────────────────────────┘
-```
-
-**Keybindings:**
-| Key | Action |
-|-----|--------|
-| `F5` or `Enter` | Execute query |
-| `Ctrl+x` | Execute query |
-| `Ctrl+s` | Save query to source buffer |
-| `Tab` | Switch query/results |
-| `q` or `Esc` | Close console |
-
----
-
-## Safety Mode
-
-By default, sqlazo asks for confirmation before executing destructive queries:
-
-```
-⚠️  Query contains DELETE. Execute anyway?
-> No, cancel
-  Yes, execute
-```
-
-**Detected keywords:** INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, REPLACE, RENAME, GRANT, REVOKE
-
-**Disable confirmation:**
-
-```lua
-require("sqlazo").setup({
-  safe_mode = false,
-})
-```
-
----
-
-## Configuration
-
-```lua
-require("sqlazo").setup({
-  format = "table",      -- table, csv, json, record
-  split = "float",       -- float, vertical, horizontal
-  safe_mode = true,      -- Confirm destructive queries
-})
-```
-
-### Environment Variables
-
-| Variable          | Description         |
-| ----------------- | ------------------- |
-| `SQLAZO_HOST`     | Default host        |
-| `SQLAZO_PORT`     | Default port (3306) |
-| `SQLAZO_USER`     | Default user        |
-| `SQLAZO_PASSWORD` | Default password    |
-| `SQLAZO_DB`       | Default database    |
-
----
-
-## Autocomplete
-
-sqlazo provides database-aware autocomplete via `nvim-cmp`.
-
-### Setup
-
-```lua
--- In your nvim-cmp config, add sqlazo as a source:
-require("cmp").setup({
-  sources = {
-    { name = "sqlazo" },  -- Add this
-    -- ... other sources
-  },
-})
-
--- Register the source (call after sqlazo.setup):
-require("sqlazo").setup_cmp()
-```
-
-### Features
-
-- **Table names**: Suggests all tables in connected database
-- **Column names**: Type `tablename.` to get column suggestions
-- **Caching**: Schema is cached per connection to avoid repeated queries
-
-### Commands
-
-| Function                                      | Description                      |
-| --------------------------------------------- | -------------------------------- |
-| `:lua require('sqlazo').get_schema()`         | Fetch schema (returns Lua table) |
-| `:lua require('sqlazo').clear_schema_cache()` | Clear cached schemas             |
-
----
+See [examples/](./examples/) for sample query files.
 
 ## License
 

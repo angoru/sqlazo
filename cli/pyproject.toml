@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sqlazo"
 version = "0.1.0"
-description = "Execute SQL queries from files with connection headers - designed for Neovim"
+description = "Execute SQL queries from files with connection headers"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "angoru"}
@@ -16,6 +16,7 @@ dependencies = [
     "mysql-connector-python>=8.0",
     "psycopg2-binary>=2.9",
     "pymongo>=4.0",
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]

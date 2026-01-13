@@ -307,3 +307,56 @@ db.users.find({})
         
         assert "connection_string" in params
         assert params["connection_string"] == "mongodb://localhost:27017/testdb"
+    
+    def test_redis_url_format(self):
+        """Test parsing Redis URL format connection string."""
+        content = """# url: redis://localhost:6379/0
+
+GET mykey
+"""
+        result = parse_file(content)
+        
+        assert result.host == "localhost"
+        assert result.port == 6379
+        assert result.database == 0
+        assert result.db_type == "redis"
+    
+    def test_redis_url_with_auth(self):
+        """Test parsing Redis URL with authentication."""
+        content = """# url: redis://user:secret@redishost:6380/1
+
+GET mykey
+"""
+        result = parse_file(content)
+        
+        assert result.host == "redishost"
+        assert result.port == 6380
+        assert result.user == "user"
+        assert result.password == "secret"
+        assert result.database == 1
+        assert result.db_type == "redis"
+    
+    def test_redis_url_minimal(self):
+        """Test parsing Redis URL with minimal info."""
+        content = """# url: redis://localhost
+
+PING
+"""
+        result = parse_file(content)
+        
+        assert result.host == "localhost"
+        assert result.db_type == "redis"
+        assert result.database is None
+    
+    def test_redis_hash_comment_header(self):
+        """Test that # comments work as headers for Redis files."""
+        content = """# url: redis://localhost:6379/2
+# This is a comment in the query
+
+GET key
+"""
+        result = parse_file(content)
+        
+        assert result.db_type == "redis"
+        assert result.database == 2
+        assert "# This is a comment in the query" in result.query
