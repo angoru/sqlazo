@@ -3,6 +3,8 @@
 
 local M = {}
 
+M.version = "0.1.1"
+
 local config = require("sqlazo.config")
 local commands = require("sqlazo.commands")
 local runner = require("sqlazo.runner")

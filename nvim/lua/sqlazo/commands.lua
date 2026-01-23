@@ -51,6 +51,28 @@ function M.setup()
   vim.api.nvim_create_user_command("SqlazoConsole", function()
     console.open()
   end, { desc = "Open interactive SQL console" })
+
+  vim.api.nvim_create_user_command("SqlazoVersion", function()
+    local sqlazo = require("sqlazo")
+    vim.api.nvim_echo({{"sqlazo.nvim v" .. (sqlazo.version or "unknown"), "Normal"}}, true, {})
+  end, { desc = "Show sqlazo version" })
+
+  vim.api.nvim_create_user_command("SqlazoHelp", function()
+    local lines = {
+      "sqlazo.nvim commands:",
+      "  :SqlazoRun              - Execute current query",
+      "  :SqlazoRunAll           - Execute all queries",
+      "  :SqlazoRunVertical      - Execute in vertical split",
+      "  :SqlazoRunHorizontal    - Execute in horizontal split",
+      "  :SqlazoRunFloat         - Execute in floating window",
+      "  :SqlazoRunRecord        - Execute with record format",
+      "  :SqlazoRunInline [N]    - Insert results as comments",
+      "  :SqlazoRunAllInline [N] - Update all inline results",
+      "  :SqlazoConsole          - Open SQL console",
+      "  :SqlazoVersion          - Show version",
+    }
+    vim.api.nvim_echo({{table.concat(lines, "\n"), "Normal"}}, true, {})
+  end, { desc = "Show sqlazo commands" })
 end
 
 return M

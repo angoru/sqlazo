@@ -6,10 +6,10 @@ Execute SQL queries from files with connection headers.
 
 This project contains two components:
 
-| Component | Description |
-|-----------|-------------|
-| [cli/](./cli/) | Python CLI tool - `pip install -e ./cli` |
-| [nvim/](./nvim/) | Neovim plugin - add to runtimepath |
+| Component        | Description                              |
+| ---------------- | ---------------------------------------- |
+| [cli/](./cli/)   | Python CLI tool - `pip install -e ./cli` |
+| [nvim/](./nvim/) | Neovim plugin - add to runtimepath       |
 
 ## Quick Start
 
@@ -44,6 +44,26 @@ sqlazo query.sql
 
 See [examples/](./examples/) for sample query files.
 
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/).
+
+### Updating
+
+If you installed via `pipx` (recommended):
+
+```bash
+# Update to the latest version
+pipx upgrade sqlazo
+
+# If installed from local source and source changed
+pipx reinstall sqlazo
+```
+
 ## License
 
 MIT
+
+---
+
+![Made with AI](https://img.shields.io/badge/Made%20with-AI-blue)

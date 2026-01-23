@@ -1,4 +1,4 @@
--- url: sqlite:///path/to/your/database.db
+-- url: sqlite:///test.db
 -- For Windows: sqlite:///C:/path/to/database.db
 -- For in-memory: sqlite://:memory:
 

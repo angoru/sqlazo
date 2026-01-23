@@ -32,20 +32,27 @@ class SchemaInfo:
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
+        unique_tables = {}
+        for table in self.tables:
+            if table.name not in unique_tables:
+                unique_tables[table.name] = table
+
+        columns_data = {}
+        for table_name, table in unique_tables.items():
+            unique_columns = {}
+            for col in table.columns:
+                if col.name not in unique_columns:
+                    unique_columns[col.name] = {
+                        "name": col.name,
+                        "type": col.data_type,
+                        "key": col.column_key,
+                    }
+            columns_data[table_name] = list(unique_columns.values())
+
         return {
             "database": self.database,
-            "tables": [t.name for t in self.tables],
-            "columns": {
-                t.name: [
-                    {
-                        "name": c.name,
-                        "type": c.data_type,
-                        "key": c.column_key,
-                    }
-                    for c in t.columns
-                ]
-                for t in self.tables
-            },
+            "tables": list(unique_tables.keys()),
+            "columns": columns_data,
         }
 
 

@@ -63,6 +63,33 @@ class TestSchemaInfo:
             {"name": "user_id", "type": "int", "key": "MUL"},
         ]
 
+    def test_to_dict_duplicates(self):
+        """Test to_dict with duplicate tables and columns."""
+        schema = SchemaInfo(
+            database="testdb",
+            tables=[
+                TableInfo(
+                    name="users",
+                    table_type="BASE TABLE",
+                    columns=[
+                        ColumnInfo(name="id", data_type="int", column_key="PRI"),
+                        ColumnInfo(name="id", data_type="int", column_key="PRI"),
+                    ],
+                ),
+                TableInfo(
+                    name="users",
+                    table_type="BASE TABLE",
+                    columns=[],
+                ),
+            ],
+        )
+
+        result = schema.to_dict()
+
+        assert result["tables"] == ["users"]
+        assert len(result["columns"]["users"]) == 1
+        assert result["columns"]["users"][0]["name"] == "id"
+
 
 class TestGetSchema:
     """Tests for get_schema function."""

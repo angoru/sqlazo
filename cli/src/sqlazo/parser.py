@@ -161,6 +161,17 @@ def parse_file(content: str) -> ParsedFile:
     # Join query lines, strip leading/trailing whitespace
     result.query = "\n".join(query_lines).strip()
     
+    # Strip markdown code blocks if present
+    if result.query.startswith("```"):
+        lines = result.query.splitlines()
+        # Remove opening fence
+        if lines and lines[0].strip().startswith("```"):
+            lines.pop(0)
+        # Remove closing fence
+        if lines and lines[-1].strip().startswith("```"):
+            lines.pop(-1)
+        result.query = "\n".join(lines).strip()
+    
     return result
 
 
