@@ -1,0 +1,1 @@
+SELECT 'Hello from v0.1.3!' as message;

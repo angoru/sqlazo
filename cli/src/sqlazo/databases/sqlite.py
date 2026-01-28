@@ -33,7 +33,7 @@ class SQLiteHandler(DatabaseHandler):
         """Validate SQLite configuration."""
         errors = []
         if not config.database:
-            errors.append("Database not specified. Set SQLAZO_DB or add '-- db: xxx' or use URL format.")
+            errors.append("Database not specified. Set DB_DATABASE or add '-- db: xxx' or use URL format.")
         return errors
     
     def get_connection(self, config) -> Any:

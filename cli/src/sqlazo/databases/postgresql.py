@@ -39,11 +39,11 @@ class PostgreSQLHandler(DatabaseHandler):
         """Validate PostgreSQL configuration."""
         errors = []
         if not config.user:
-            errors.append("User not specified. Set SQLAZO_USER or add '-- user: xxx' to file header.")
+            errors.append("User not specified. Set DB_USER or add '-- user: xxx' to file header.")
         if not config.database:
-            errors.append("Database not specified. Set SQLAZO_DB or add '-- db: xxx' to file header.")
+            errors.append("Database not specified. Set DB_DATABASE or add '-- db: xxx' to file header.")
         if not config.password:
-            errors.append("Password not specified. Set SQLAZO_PASSWORD environment variable.")
+            errors.append("Password not specified. Set DB_PASSWORD environment variable.")
         return errors
     
     def get_connection(self, config) -> Any:
