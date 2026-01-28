@@ -36,11 +36,11 @@ class TestConnectionConfig:
     def test_from_env(self):
         from sqlazo.connection import ConnectionConfig
         with patch.dict(os.environ, {
-            "SQLAZO_HOST": "testhost",
-            "SQLAZO_PORT": "9999",
-            "SQLAZO_USER": "testuser",
-            "SQLAZO_PASSWORD": "testpass",
-            "SQLAZO_DB": "testdb",
+            "DB_HOST": "testhost",
+            "DB_PORT": "9999",
+            "DB_USER": "testuser",
+            "DB_PASSWORD": "testpass",
+            "DB_DATABASE": "testdb",
         }):
             config = ConnectionConfig.from_env()
             assert config.host == "testhost"
@@ -52,11 +52,60 @@ class TestConnectionConfig:
     def test_from_env_db_type(self):
         from sqlazo.connection import ConnectionConfig
         with patch.dict(os.environ, {
-            "SQLAZO_DB_TYPE": "postgresql",
+            "DB_TYPE": "postgresql",
         }, clear=True):
             config = ConnectionConfig.from_env()
             assert config.db_type == "postgresql"
             assert config.port == 5432
+
+    def test_from_env_dotenv_support(self):
+        """Test that .env files are loaded when they exist."""
+        import tempfile
+        import os
+        from unittest.mock import patch
+        from sqlazo.connection import ConnectionConfig
+        
+        # Create a temporary .env file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+            f.write("DB_HOST=env.example.com\n")
+            f.write("DB_PORT=9999\n")
+            f.write("DB_USER=envuser\n")
+            env_file = f.name
+        
+        try:
+            # Clear environment and test with explicit dotenv path
+            with patch.dict(os.environ, {}, clear=True):
+                config = ConnectionConfig.from_env(dotenv_path=env_file)
+                assert config.host == "env.example.com"
+                assert config.port == 9999
+                assert config.user == "envuser"
+                assert config.db_type == "mysql"  # default
+        finally:
+            os.unlink(env_file)
+
+    def test_env_vars_override_dotenv(self):
+        """Test that environment variables take precedence over .env files."""
+        import tempfile
+        import os
+        from unittest.mock import patch
+        from sqlazo.connection import ConnectionConfig
+        
+        # Create a temporary .env file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.env', delete=False) as f:
+            f.write("DB_HOST=env.example.com\n")
+            f.write("DB_PORT=9999\n")
+            env_file = f.name
+        
+        try:
+            # Test environment variables override .env
+            with patch.dict(os.environ, {
+                "DB_HOST": "override.example.com",
+            }, clear=True):
+                config = ConnectionConfig.from_env(dotenv_path=env_file)
+                assert config.host == "override.example.com"  # env var wins
+                assert config.port == 9999  # from .env file
+        finally:
+            os.unlink(env_file)
     
     def test_merge_with_file_params(self):
         from sqlazo.connection import ConnectionConfig

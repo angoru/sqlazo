@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional, Any
 
+from dotenv import load_dotenv
 from sqlazo.databases import get_handler_for_db_type
 
 
@@ -27,27 +28,33 @@ class ConnectionConfig:
                 self.port = handler.default_port
     
     @classmethod
-    def from_env(cls) -> "ConnectionConfig":
-        """Create config from environment variables."""
+    def from_env(cls, dotenv_path: Optional[str] = None) -> "ConnectionConfig":
+        """Create config from environment variables and .env file."""
+        # Load .env file if it exists
+        if dotenv_path:
+            load_dotenv(dotenv_path)
+        else:
+            load_dotenv()
+        
         config = cls()
         
-        if env_host := os.environ.get("SQLAZO_HOST"):
+        if env_host := os.environ.get("DB_HOST"):
             config.host = env_host
-        if env_port := os.environ.get("SQLAZO_PORT"):
+        if env_port := os.environ.get("DB_PORT"):
             try:
                 config.port = int(env_port)
             except ValueError:
                 pass
-        if env_user := os.environ.get("SQLAZO_USER"):
+        if env_user := os.environ.get("DB_USER"):
             config.user = env_user
-        if env_password := os.environ.get("SQLAZO_PASSWORD"):
+        if env_password := os.environ.get("DB_PASSWORD"):
             config.password = env_password
-        if env_db := os.environ.get("SQLAZO_DB"):
+        if env_db := os.environ.get("DB_DATABASE"):
             config.database = env_db
-        if env_db_type := os.environ.get("SQLAZO_DB_TYPE"):
+        if env_db_type := os.environ.get("DB_TYPE"):
             config.db_type = env_db_type.lower()
             # Update port based on handler default if not explicitly set
-            if not os.environ.get("SQLAZO_PORT"):
+            if not os.environ.get("DB_PORT"):
                 handler = get_handler_for_db_type(config.db_type)
                 if handler and handler.default_port:
                     config.port = handler.default_port

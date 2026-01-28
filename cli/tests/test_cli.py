@@ -99,3 +99,18 @@ class TestCLI:
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1
+    
+    def test_version_flag(self):
+        """Test --version flag displays version and exits."""
+        from sqlazo.cli import main
+        from sqlazo import __version__
+        from io import StringIO
+        
+        with patch.object(sys, 'argv', ['sqlazo', '--version']):
+            with patch('sys.stdout', StringIO()) as stdout:
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 0
+                output = stdout.getvalue()
+                assert __version__ in output
+                assert "sqlazo" in output

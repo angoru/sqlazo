@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from sqlazo import __version__
 from sqlazo.connection import ConnectionConfig, get_connection
 from sqlazo.formatter import OutputFormat, format_result
 from sqlazo.parser import parse_file, parse_file_path
@@ -16,7 +17,14 @@ def main():
     parser = argparse.ArgumentParser(
         prog="sqlazo",
         description="Execute SQL queries from files with connection headers.",
-        epilog="Connection priority: file header > environment variables > defaults",
+        epilog="Connection priority: file header > environment variables (DB_*) > .env file > defaults",
+    )
+    
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show version information and exit",
     )
     
     parser.add_argument(
