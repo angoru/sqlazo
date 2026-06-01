@@ -1,72 +1,38 @@
 # sqlazo.nvim
 
-Neovim plugin for executing SQL queries with database-aware autocomplete.
+Minimal Neovim plugin for running the SQL query at the cursor through the
+`sqlazo` CLI.
 
 ## Requirements
 
 - Neovim 0.8+
-- [sqlazo CLI](../cli/) installed and in PATH
+- `sqlazo` CLI in `PATH`, or configure `python_cmd`
 
 ## Installation
-
-**lazy.nvim:**
 
 ```lua
 {
   dir = "/path/to/sqlazo/nvim",
-  ft = { "sql", "mysql", "javascript", "redis" },
+  ft = { "sql", "mysql", "pgsql", "psql", "sqlite" },
   config = function()
     require("sqlazo").setup()
   end,
 }
 ```
 
-## Commands
+## Command
 
 | Command | Description |
 |---------|-------------|
-| `:SqlazoRun` | Execute query at cursor → float |
-| `:SqlazoRunRecord` | Execute with record format |
-| `:SqlazoRunVertical` | Execute → vertical split |
-| `:SqlazoRunHorizontal` | Execute → horizontal split |
-| `:SqlazoRunTab` | Execute → tab |
-| `:SqlazoRunInline [N]` | Insert first N rows as comments |
-| `:SqlazoRunAllInline [N]` | Run all queries, update inline |
-| `:SqlazoConsole` | Open interactive SQL console |
+| `:SqlazoRun` | Execute query at cursor |
+| `:SqlazoFilterValue` | Add a filter to the source query using the selected result cell |
 
-## Result Buffer
+## Result Navigation
 
 | Key | Action |
 |-----|--------|
-| `h`/`j`/`k`/`l` | Move selected cell |
-| `yc` | Copy selected cell |
-| `yr` | Copy selected row |
-| `yC` | Copy selected column |
-| `e` | Export result to CSV |
-| `r` | Re-run query |
-| `gq` / `<BS>` | Jump back to query |
-| `g?` | Show contextual help |
-
-## Configuration
-
-```lua
-require("sqlazo").setup({
-  format = "table",      -- table, csv, json, record
-  result_mode = "panel", -- panel, split, float, tab
-  result_position = "bottom",
-  reuse_result_buffer = true,
-  python_cmd = "python", -- used for python -m sqlazo
-  prefer_python = false, -- set true to ignore an old sqlazo in PATH
-  auto_prefer_json_meta = true,
-  safe_mode = true,      -- Confirm destructive queries
-  default_comment_prefix = "--",
-  comment_prefix_by_filetype = {
-    sql = "--",
-    javascript = "//",
-    redis = "#",
-  },
-})
-```
+| `h`/`j`/`k`/`l` | Move selected result cell |
+| `f` | Filter source query by selected cell |
 
 ## Autocomplete
 
@@ -80,6 +46,17 @@ require("cmp").setup({
 require("sqlazo").setup_cmp()
 ```
 
-## License
+The minimal autocomplete source suggests tables after `FROM`/`JOIN` and fields
+from referenced tables in `WHERE`, `AND`, `OR`, `ON`, and `ORDER BY`.
 
-MIT
+## Configuration
+
+```lua
+require("sqlazo").setup({
+  format = "table",
+  python_cmd = "python",
+  prefer_python = false,
+  safe_mode = true,
+  profile = nil,
+})
+```

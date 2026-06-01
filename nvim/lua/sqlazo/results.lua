@@ -1,5 +1,4 @@
--- sqlazo.nvim results module
--- Structured result rendering and navigation helpers
+-- sqlazo.nvim result rendering
 
 local M = {}
 
@@ -10,14 +9,6 @@ local function stringify(value)
     return "NULL"
   end
   return tostring(value)
-end
-
-local function csv_escape(value)
-  local text = stringify(value)
-  if text:find('[,"\n]') then
-    return '"' .. text:gsub('"', '""') .. '"'
-  end
-  return text
 end
 
 local function cell_bounds(buf, row, col)
@@ -37,7 +28,7 @@ end
 local function clamp_selection(buf)
   local result = vim.b[buf].sqlazo_result
   local meta = vim.b[buf].sqlazo_result_meta
-  if not result or result.raw_output or not meta then
+  if not result or not meta then
     return nil
   end
 
@@ -67,16 +58,16 @@ function M.highlight_selection(buf)
   end
 
   vim.api.nvim_buf_add_highlight(buf, ns, "Visual", line - 1, start_col, end_col)
-  local current_win = vim.api.nvim_get_current_win()
-  if vim.api.nvim_win_get_buf(current_win) == buf then
-    pcall(vim.api.nvim_win_set_cursor, current_win, { line, start_col })
+  local win = vim.api.nvim_get_current_win()
+  if vim.api.nvim_win_get_buf(win) == buf then
+    pcall(vim.api.nvim_win_set_cursor, win, { line, start_col })
   end
 end
 
 function M.move_selection(buf, drow, dcol)
   local selection = clamp_selection(buf)
   if not selection then
-    vim.api.nvim_echo({{"sqlazo: Structured result navigation unavailable", "WarningMsg"}}, true, {})
+    vim.api.nvim_echo({ { "sqlazo: No selectable result cells", "WarningMsg" } }, true, {})
     return
   end
 
@@ -86,161 +77,34 @@ function M.move_selection(buf, drow, dcol)
   M.highlight_selection(buf)
 end
 
-function M.copy_cell(buf)
+function M.selected_cell(buf)
   local result = vim.b[buf].sqlazo_result
   local selection = clamp_selection(buf)
   if not result or not selection then
-    return
-  end
-  local value = stringify(result.rows[selection.row][selection.col])
-  vim.fn.setreg("+", value)
-  vim.fn.setreg('"', value)
-  vim.api.nvim_echo({{"sqlazo: Copied cell", "Normal"}}, true, {})
-end
-
-function M.copy_row(buf)
-  local result = vim.b[buf].sqlazo_result
-  local selection = clamp_selection(buf)
-  if not result or not selection then
-    return
-  end
-  local header = {}
-  for _, column in ipairs(result.columns or {}) do
-    table.insert(header, csv_escape(column))
-  end
-  local values = {}
-  for _, value in ipairs(result.rows[selection.row]) do
-    table.insert(values, csv_escape(value))
-  end
-  local text = table.concat(header, ",") .. "\n" .. table.concat(values, ",")
-  vim.fn.setreg("+", text)
-  vim.fn.setreg('"', text)
-  vim.api.nvim_echo({{"sqlazo: Copied row as CSV", "Normal"}}, true, {})
-end
-
-function M.copy_column(buf)
-  local result = vim.b[buf].sqlazo_result
-  local selection = clamp_selection(buf)
-  if not result or not selection then
-    return
-  end
-  local values = { csv_escape(result.columns[selection.col]) }
-  for _, row in ipairs(result.rows or {}) do
-    table.insert(values, csv_escape(row[selection.col]))
-  end
-  local text = table.concat(values, "\n")
-  vim.fn.setreg("+", text)
-  vim.fn.setreg('"', text)
-  vim.api.nvim_echo({{"sqlazo: Copied column as CSV", "Normal"}}, true, {})
-end
-
-function M.to_csv(result)
-  if not result or result.raw_output or not result.is_select then
     return nil
   end
 
-  local lines = {}
-  local header = {}
-  for _, column in ipairs(result.columns or {}) do
-    table.insert(header, csv_escape(column))
-  end
-  table.insert(lines, table.concat(header, ","))
-
-  for _, row in ipairs(result.rows or {}) do
-    local values = {}
-    for _, value in ipairs(row) do
-      table.insert(values, csv_escape(value))
-    end
-    table.insert(lines, table.concat(values, ","))
-  end
-
-  return table.concat(lines, "\n")
+  return {
+    column = result.columns[selection.col],
+    value = result.rows[selection.row][selection.col],
+    row = selection.row,
+    col = selection.col,
+  }
 end
 
-function M.export_csv(buf)
-  local result = vim.b[buf].sqlazo_result
-  local csv = M.to_csv(result)
-  if not csv then
-    vim.api.nvim_echo({{"sqlazo: CSV export requires structured SELECT results", "WarningMsg"}}, true, {})
-    return
-  end
-
-  local default_name = "sqlazo-result.csv"
-  local source_buf = vim.b[buf].sqlazo_source_buf
-  if source_buf and vim.api.nvim_buf_is_valid(source_buf) then
-    local source_name = vim.api.nvim_buf_get_name(source_buf)
-    if source_name ~= "" then
-      default_name = vim.fn.fnamemodify(source_name, ":r") .. ".csv"
-    end
-  end
-
-  vim.ui.input({ prompt = "Export CSV: ", default = default_name }, function(path)
-    if not path or path == "" then
-      return
-    end
-    vim.fn.writefile(vim.split(csv, "\n", { plain = true }), path)
-    vim.api.nvim_echo({{"sqlazo: Exported CSV to " .. path, "Normal"}}, true, {})
-  end)
-end
-
-local function connection_label(result)
-  local metadata = result.metadata or {}
-  local connection = metadata.connection or {}
-  local db_type = connection.db_type or "db"
-  local host = connection.host or "local"
-  local database = connection.database
-
-  if database and database ~= "" then
-    return db_type .. " " .. database .. "@" .. host
-  end
-  return db_type .. " " .. host
-end
-
-function M.render_lines(result)
-  if result.raw_output then
-    local lines = {}
-    local metadata = result.metadata or {}
-    local mode = metadata.mode or "legacy"
-    table.insert(lines, "sqlazo: " .. mode .. " output")
-    table.insert(lines, string.rep("-", 72))
-    table.insert(lines, "")
-    for _, line in ipairs(vim.split(result.raw_output, "\n", { trimempty = false })) do
-      table.insert(lines, line)
-    end
-    return lines
-  end
-
-  local lines = {}
-  local metadata = result.metadata or {}
-  local duration = metadata.duration_ms and (tostring(metadata.duration_ms) .. " ms") or "unknown"
-  local row_count = result.row_count or #(result.rows or {})
-
-  table.insert(lines, "sqlazo: " .. connection_label(result) .. " | " .. row_count .. " rows | " .. duration)
-  table.insert(lines, string.rep("-", math.max(72, #lines[1])))
-  table.insert(lines, "")
-
-  if not result.is_select then
-    local affected = result.affected_rows or 0
-    local line = "Affected rows: " .. affected
-    if result.last_insert_id then
-      line = line .. ", Last insert ID: " .. result.last_insert_id
-    end
-    table.insert(lines, line)
-    return lines
-  end
-
+local function render_table(result)
   local columns = result.columns or {}
   local rows = result.rows or {}
+  local lines = {}
+
   if #columns == 0 then
-    table.insert(lines, "(No results)")
-    return lines
+    return { "(No results)" }, nil
   end
 
   local widths = {}
   for i, column in ipairs(columns) do
-    widths[i] = #tostring(column)
+    widths[i] = #stringify(column)
   end
-
   for _, row in ipairs(rows) do
     for i, value in ipairs(row) do
       widths[i] = math.max(widths[i] or 0, #stringify(value))
@@ -271,24 +135,33 @@ function M.render_lines(result)
     table.insert(lines, row_line(row))
   end
   table.insert(lines, separator())
-  table.insert(lines, "(" .. row_count .. " row" .. (row_count == 1 and "" or "s") .. ")")
+  table.insert(lines, "(" .. #rows .. " row" .. (#rows == 1 and "" or "s") .. ")")
 
   return lines, { widths = widths, first_data_line = first_data_line }
 end
 
-function M.set_buffer_result(buf, result)
+function M.set_result(buf, result)
   vim.b[buf].sqlazo_result = result
-  vim.api.nvim_buf_set_option(buf, "modifiable", true)
-  local lines, meta = M.render_lines(result)
-  vim.b[buf].sqlazo_result_meta = meta
   vim.b[buf].sqlazo_selection = { row = 1, col = 1 }
+
+  local lines, meta
+  if result.raw_output then
+    lines = vim.split(result.raw_output, "\n", { trimempty = false })
+  elseif result.is_select == false then
+    lines = { "Affected rows: " .. tostring(result.affected_rows or 0) }
+  else
+    lines, meta = render_table(result)
+  end
+
+  vim.b[buf].sqlazo_result_meta = meta
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_buf_set_option(buf, "filetype", "sqlazo-result")
   vim.api.nvim_buf_set_option(buf, "modifiable", false)
   M.highlight_selection(buf)
 end
 
-function M.set_buffer_error(buf, message)
+function M.set_error(buf, message)
   vim.b[buf].sqlazo_result = nil
   vim.b[buf].sqlazo_result_meta = nil
   vim.b[buf].sqlazo_selection = nil
@@ -296,6 +169,17 @@ function M.set_buffer_error(buf, message)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(message, "\n", { trimempty = false }))
   vim.api.nvim_buf_set_option(buf, "filetype", "sqlazo-result")
   vim.api.nvim_buf_set_option(buf, "modifiable", false)
+end
+
+function M.setup_keymaps(buf)
+  vim.keymap.set("n", "h", function() M.move_selection(buf, 0, -1) end, { buffer = buf, desc = "Move cell left" })
+  vim.keymap.set("n", "j", function() M.move_selection(buf, 1, 0) end, { buffer = buf, desc = "Move cell down" })
+  vim.keymap.set("n", "k", function() M.move_selection(buf, -1, 0) end, { buffer = buf, desc = "Move cell up" })
+  vim.keymap.set("n", "l", function() M.move_selection(buf, 0, 1) end, { buffer = buf, desc = "Move cell right" })
+  vim.keymap.set("n", "f", function() require("sqlazo.runner").filter_by_selected_value(buf) end, {
+    buffer = buf,
+    desc = "Filter source query by selected cell",
+  })
 end
 
 return M
