@@ -56,9 +56,20 @@ class RedisHandler(DatabaseHandler):
         if config.password:
             kwargs["password"] = config.password
         if config.database is not None:
-            kwargs["db"] = config.database if isinstance(config.database, int) else 0
-        
+            db_value = config.database
+            if isinstance(db_value, str) and db_value.isdigit():
+                db_value = int(db_value)
+            kwargs["db"] = db_value if isinstance(db_value, int) else 0
+
         return redis_client.Redis(**kwargs)
+
+    def get_schema(self, connection: Any, database: str) -> dict:
+        """Redis does not support schema introspection; return an empty schema."""
+        return {
+            "database": database if database is not None else "",
+            "tables": [],
+            "columns": {},
+        }
     
     def execute_query(self, connection: Any, query: str) -> QueryResult:
         """Execute Redis commands."""

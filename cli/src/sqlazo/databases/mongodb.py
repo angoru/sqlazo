@@ -83,6 +83,13 @@ class MongoDBHandler(DatabaseHandler):
         # connection is (client, db) tuple
         _, db = connection
         return self._execute_mongo_query(db, query)
+
+    def get_schema(self, connection: Any, database: str) -> dict:
+        """Get MongoDB schema for autocomplete."""
+        _, db = connection
+        from sqlazo.schema import get_schema as get_schema_for_db
+        schema = get_schema_for_db(db, database, "mongodb")
+        return schema.to_dict()
     
     def _execute_mongo_query(self, db: Any, query: str) -> QueryResult:
         """Execute a MongoDB query string."""

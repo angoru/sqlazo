@@ -114,3 +114,25 @@ class TestFormatResult:
         output = format_result(result, "table")
         
         assert output == "(No results)"
+
+    def test_json_meta_format(self):
+        """Test structured JSON output with execution metadata."""
+        result = QueryResult(
+            columns=["id", "created_at"],
+            rows=[(1, object())],
+            is_select=True,
+        )
+        metadata = {
+            "duration_ms": 12.3,
+            "query": "SELECT id, created_at FROM users",
+            "connection": {"db_type": "postgresql", "database": "app"},
+        }
+
+        output = format_result(result, "json-meta", metadata=metadata)
+        data = json.loads(output)
+
+        assert data["columns"] == ["id", "created_at"]
+        assert data["row_count"] == 1
+        assert data["rows"][0][0] == 1
+        assert isinstance(data["rows"][0][1], str)
+        assert data["metadata"] == metadata

@@ -6,6 +6,7 @@ from typing import Optional, Any
 
 from dotenv import load_dotenv
 from sqlazo.databases import get_handler_for_db_type
+from sqlazo.secure_credentials import SecureCredentialManager
 
 
 @dataclass
@@ -17,12 +18,12 @@ class ConnectionConfig:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
-    db_type: str = "mysql"
+    db_type: Optional[str] = None
     connection_string: Optional[str] = None  # For MongoDB connection strings
     
     def __post_init__(self):
         """Set default port based on database type if not specified."""
-        if self.port is None:
+        if self.port is None and self.db_type:
             handler = get_handler_for_db_type(self.db_type)
             if handler and handler.default_port:
                 self.port = handler.default_port
@@ -36,7 +37,7 @@ class ConnectionConfig:
         else:
             load_dotenv()
         
-        config = cls()
+        config = cls(db_type=None)
         
         if env_host := os.environ.get("DB_HOST"):
             config.host = env_host
@@ -72,10 +73,12 @@ class ConnectionConfig:
             New ConnectionConfig with merged values.
         """
         new_db_type = file_params.get("db_type", self.db_type)
+        if new_db_type:
+            new_db_type = new_db_type.lower()
         new_port = file_params.get("port", self.port)
         
         # If db_type changed and port wasn't explicitly set, use default for new db_type
-        if new_db_type != self.db_type and "port" not in file_params:
+        if new_db_type != self.db_type and "port" not in file_params and new_db_type:
             handler = get_handler_for_db_type(new_db_type)
             if handler and handler.default_port:
                 new_port = handler.default_port
@@ -97,6 +100,8 @@ class ConnectionConfig:
         Returns:
             List of error messages. Empty if valid.
         """
+        if not self.db_type:
+            return ["Database type not specified. Set DB_TYPE, add a header like '-- db_type: postgresql', or use a URL header."]
         handler = get_handler_for_db_type(self.db_type)
         if handler:
             return handler.validate_config(self)
@@ -106,14 +111,44 @@ class ConnectionConfig:
 def get_connection(config: ConnectionConfig) -> Any:
     """
     Create a database connection using the appropriate handler.
-    
+
     Args:
         config: Connection configuration.
-        
+
     Returns:
         Database connection object.
     """
+    if not config.db_type:
+        raise ValueError("Database type not specified")
     handler = get_handler_for_db_type(config.db_type)
     if handler:
         return handler.get_connection(config)
     raise ValueError(f"Unknown database type: {config.db_type}")
+
+
+def load_connection_from_profile(profile_name: str, master_password: Optional[str] = None) -> ConnectionConfig:
+    """
+    Load connection configuration from a stored profile.
+
+    Args:
+        profile_name: Name of the credential profile to load
+        master_password: Master password for decryption. If None, will prompt user.
+
+    Returns:
+        ConnectionConfig object with loaded credentials
+    """
+    cred_manager = SecureCredentialManager()
+    credentials = cred_manager.retrieve_credentials(profile_name, master_password)
+
+    if not credentials:
+        raise ValueError(f"Could not retrieve credentials for profile '{profile_name}'")
+
+    # Map retrieved credentials to ConnectionConfig
+    return ConnectionConfig(
+        host=credentials.get('host', 'localhost'),
+        port=credentials.get('port'),
+        user=credentials.get('user'),
+        password=credentials.get('password'),
+        database=credentials.get('database'),
+        db_type=credentials.get('db_type')
+    )

@@ -12,7 +12,7 @@ from sqlazo.databases.base import DatabaseHandler, QueryResult
 class MySQLHandler(DatabaseHandler):
     """Handler for MySQL databases."""
     
-    schemes = ["mysql"]
+    schemes = ["mysql", "mariadb"]
     default_port = 3306
     comment_prefixes = ["--"]
     requires_auth = True
@@ -20,7 +20,7 @@ class MySQLHandler(DatabaseHandler):
     
     def parse_url(self, parsed: ParseResult, url: str) -> dict:
         """Parse MySQL connection URL."""
-        params = {"db_type": "mysql"}
+        params = {"db_type": parsed.scheme.lower() if parsed.scheme.lower() == "mariadb" else "mysql"}
         
         if parsed.hostname:
             params["host"] = parsed.hostname

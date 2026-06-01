@@ -15,6 +15,7 @@ local parser = require("sqlazo.parser")
 -- Setup function to configure the plugin
 function M.setup(opts)
   config.setup(opts)
+  runner.reset_detection_cache()
   commands.setup()
 end
 

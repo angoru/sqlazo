@@ -19,14 +19,21 @@ class SQLiteHandler(DatabaseHandler):
     def parse_url(self, parsed: ParseResult, url: str) -> dict:
         """Parse SQLite connection URL."""
         params = {"db_type": "sqlite"}
-        
+
         # Handle :memory: special case
         if parsed.netloc == ":memory:" or parsed.path == "/:memory:":
             params["database"] = ":memory:"
+        elif parsed.netloc:
+            params["database"] = parsed.netloc
+        elif parsed.path.startswith("//"):
+            # sqlite:////absolute/path.db
+            params["database"] = parsed.path[1:]
+        elif parsed.path.startswith("/"):
+            # sqlite:///relative/path.db
+            params["database"] = parsed.path[1:]
         else:
-            # For sqlite:///path/to/db, the path is the database file
-            params["database"] = parsed.path if parsed.path else parsed.netloc
-        
+            params["database"] = parsed.path
+
         return params
     
     def validate_config(self, config) -> list[str]:

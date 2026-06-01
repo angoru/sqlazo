@@ -5,6 +5,7 @@ local M = {}
 
 local config = require("sqlazo.config")
 local parser = require("sqlazo.parser")
+local results = require("sqlazo.results")
 local runner = require("sqlazo.runner")
 local ui = require("sqlazo.ui")
 
@@ -53,6 +54,7 @@ function M.open()
   if #initial_lines > 0 then
     vim.api.nvim_buf_set_lines(query_buf, 0, -1, false, initial_lines)
   end
+  local initial_query_line = #header_lines > 0 and (#header_lines + 2) or 1
 
   -- Create result buffer (readonly)
   local result_buf = vim.api.nvim_create_buf(false, true)
@@ -69,7 +71,7 @@ function M.open()
     col = dims.col,
     style = "minimal",
     border = "rounded",
-    title = " SQL Query (F5/Enter: exec, Ctrl+S: save, q: close) ",
+    title = " SQL Query (F5/Enter: exec, Ctrl+S: save, Tab: results, g?: help, q: close) ",
     title_pos = "center",
   })
 
@@ -82,7 +84,7 @@ function M.open()
     col = dims.col,
     style = "minimal",
     border = "rounded",
-    title = " Results ",
+    title = " Results (g?: help, q: close) ",
     title_pos = "center",
   })
 
@@ -99,22 +101,31 @@ function M.open()
   }
 
   -- Define local functions
+  local function focus_query()
+    if query_win and vim.api.nvim_win_is_valid(query_win) then
+      vim.api.nvim_set_current_win(query_win)
+    end
+  end
+
+  local function focus_results()
+    if result_win and vim.api.nvim_win_is_valid(result_win) then
+      vim.api.nvim_set_current_win(result_win)
+    end
+  end
+
   local function execute_query()
     local lines = vim.api.nvim_buf_get_lines(query_buf, 0, -1, false)
     local content = table.concat(lines, "\n")
 
     local function do_execute()
-      local output, exit_code = runner.execute(content, config.get().format)
-
-      vim.api.nvim_buf_set_option(result_buf, "modifiable", true)
-      local result_lines = vim.split(output, "\n", { trimempty = false })
-      vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, result_lines)
-      vim.api.nvim_buf_set_option(result_buf, "modifiable", false)
-
+      local result, error_message, exit_code = runner.execute_meta(content, config.get().profile)
       if exit_code ~= 0 then
+        results.set_buffer_error(result_buf, error_message)
         vim.api.nvim_echo({{"sqlazo: Query failed", "ErrorMsg"}}, true, {})
       else
+        results.set_buffer_result(result_buf, result)
         vim.api.nvim_echo({{"sqlazo: Query executed", "Normal"}}, true, {})
+        focus_results()
       end
     end
 
@@ -166,27 +177,60 @@ function M.open()
     vim.api.nvim_echo({{"sqlazo: Query saved to " .. source_name, "Normal"}}, true, {})
   end
 
+  local function show_console_help()
+    ui.show_help("sqlazo console", {
+      "Query",
+      "  <F5> / <C-x>    execute query",
+      "  <CR>            execute query in normal mode",
+      "  <C-s>           save query back to source buffer",
+      "  <Tab> / <C-j>   focus results",
+      "",
+      "Results",
+      "  h / j / k / l   move selected cell",
+      "  yc              copy selected cell",
+      "  yr              copy selected row as CSV",
+      "  yC              copy selected column as CSV",
+      "  e               export result to CSV",
+      "  r               re-run query",
+      "  gq / <BS>       focus query",
+      "",
+      "Window",
+      "  q               close console",
+      "  g?              toggle this help",
+    })
+  end
+
   -- Keymaps for query buffer
   vim.keymap.set({"n", "i"}, "<C-x>", execute_query, { buffer = query_buf, desc = "Execute query" })
   vim.keymap.set({"n", "i"}, "<F5>", execute_query, { buffer = query_buf, desc = "Execute query" })
   vim.keymap.set("n", "<leader>r", execute_query, { buffer = query_buf, desc = "Execute query" })
   vim.keymap.set("n", "<CR>", execute_query, { buffer = query_buf, desc = "Execute query" })
   vim.keymap.set("n", "q", close_console, { buffer = query_buf, desc = "Close console" })
-  vim.keymap.set("n", "<Esc>", close_console, { buffer = query_buf, desc = "Close console" })
+  vim.keymap.set("n", "g?", show_console_help, { buffer = query_buf, desc = "Show console help" })
   vim.keymap.set({"n", "i"}, "<C-s>", save_to_source, { buffer = query_buf, desc = "Save query" })
 
   -- Keymaps for result buffer
   vim.keymap.set("n", "q", close_console, { buffer = result_buf, desc = "Close console" })
-  vim.keymap.set("n", "<Esc>", close_console, { buffer = result_buf, desc = "Close console" })
-  vim.keymap.set("n", "<Tab>", function()
-    vim.api.nvim_set_current_win(query_win)
-  end, { buffer = result_buf, desc = "Switch to query" })
+  vim.keymap.set("n", "g?", show_console_help, { buffer = result_buf, desc = "Show console help" })
+  vim.keymap.set("n", "<Tab>", focus_query, { buffer = result_buf, desc = "Switch to query" })
+  vim.keymap.set("n", "<BS>", focus_query, { buffer = result_buf, desc = "Switch to query" })
+  vim.keymap.set("n", "gq", focus_query, { buffer = result_buf, desc = "Switch to query" })
+  vim.keymap.set("n", "r", execute_query, { buffer = result_buf, desc = "Re-run query" })
+  vim.keymap.set("n", "h", function() results.move_selection(result_buf, 0, -1) end, { buffer = result_buf, desc = "Move cell left" })
+  vim.keymap.set("n", "j", function() results.move_selection(result_buf, 1, 0) end, { buffer = result_buf, desc = "Move cell down" })
+  vim.keymap.set("n", "k", function() results.move_selection(result_buf, -1, 0) end, { buffer = result_buf, desc = "Move cell up" })
+  vim.keymap.set("n", "l", function() results.move_selection(result_buf, 0, 1) end, { buffer = result_buf, desc = "Move cell right" })
+  vim.keymap.set("n", "yc", function() results.copy_cell(result_buf) end, { buffer = result_buf, desc = "Copy cell" })
+  vim.keymap.set("n", "yr", function() results.copy_row(result_buf) end, { buffer = result_buf, desc = "Copy row" })
+  vim.keymap.set("n", "yC", function() results.copy_column(result_buf) end, { buffer = result_buf, desc = "Copy column" })
+  vim.keymap.set("n", "e", function() results.export_csv(result_buf) end, { buffer = result_buf, desc = "Export CSV" })
 
-  vim.keymap.set("n", "<Tab>", function()
-    vim.api.nvim_set_current_win(result_win)
-  end, { buffer = query_buf, desc = "Switch to results" })
+  vim.keymap.set("n", "<Tab>", focus_results, { buffer = query_buf, desc = "Switch to results" })
+  vim.keymap.set({"n", "i"}, "<C-j>", focus_results, { buffer = query_buf, desc = "Switch to results" })
+  vim.keymap.set("n", "<C-k>", focus_query, { buffer = result_buf, desc = "Switch to query" })
 
-  vim.cmd("startinsert!")
+  vim.api.nvim_set_current_win(query_win)
+  pcall(vim.api.nvim_win_set_cursor, query_win, { initial_query_line, 0 })
 end
 
 return M

@@ -18,7 +18,7 @@ class ParsedFile:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
-    db_type: str = "mysql"
+    db_type: Optional[str] = None
     connection_string: Optional[str] = None  # For MongoDB connection strings
     
     # The SQL query content
@@ -56,6 +56,9 @@ HEADER_KEYS = {
     "db": "database",
     "database": "database",
     "schema": "database",
+    "db_type": "db_type",
+    "dbtype": "db_type",
+    "engine": "db_type",
 }
 
 
@@ -78,6 +81,12 @@ def parse_url(url: str) -> dict:
     if handler:
         return handler.parse_url(parsed, url)
     
+    if scheme == "mariadb":
+        from sqlazo.databases.mysql import MySQLHandler
+        params = MySQLHandler().parse_url(parsed, url)
+        params["db_type"] = "mariadb"
+        return params
+
     # Default to MySQL for unknown schemes
     from sqlazo.databases.mysql import MySQLHandler
     return MySQLHandler().parse_url(parsed, url)
@@ -92,6 +101,7 @@ def parse_file(content: str) -> ParsedFile:
         -- user: myuser
         -- db: mydb
         -- port: 3306
+        -- db_type: postgresql
     
     Or URL format:
         -- url: mysql://user:pass@host:port/database
@@ -140,6 +150,8 @@ def parse_file(content: str) -> ParsedFile:
                         setattr(result, attr_name, int(value))
                     except ValueError:
                         pass  # Ignore invalid port
+                elif attr_name == "db_type":
+                    setattr(result, attr_name, value.lower())
                 else:
                     setattr(result, attr_name, value)
             else:
@@ -171,8 +183,28 @@ def parse_file(content: str) -> ParsedFile:
         if lines and lines[-1].strip().startswith("```"):
             lines.pop(-1)
         result.query = "\n".join(lines).strip()
+
+    if _is_comment_only_query(result.query):
+        result.query = ""
     
     return result
+
+
+def _is_comment_only_query(query: str) -> bool:
+    """Return true when the query has no executable SQL."""
+    if not query.strip():
+        return True
+
+    comment_prefixes = get_all_comment_prefixes()
+    for line in query.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(stripped.startswith(prefix) for prefix in comment_prefixes):
+            continue
+        return False
+
+    return True
 
 
 def parse_file_path(file_path: str) -> ParsedFile:

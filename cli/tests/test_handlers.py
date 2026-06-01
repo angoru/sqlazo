@@ -189,6 +189,15 @@ class TestRedisHandler:
         config = Mock(host="localhost", port=6379, user=None, password=None, database=0)
         handler.get_connection(config)
         mock_redis.assert_called_once()
+
+    @patch("sqlazo.databases.redis.redis_client.Redis")
+    def test_get_connection_db_string(self, mock_redis):
+        from sqlazo.databases.redis import RedisHandler
+        handler = RedisHandler()
+        config = Mock(host="localhost", port=6379, user=None, password=None, database="2")
+        handler.get_connection(config)
+        _, kwargs = mock_redis.call_args
+        assert kwargs["db"] == 2
     
     @patch("sqlazo.databases.redis.redis_client.Redis")
     def test_execute_query_ping(self, mock_redis):

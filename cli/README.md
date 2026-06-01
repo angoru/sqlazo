@@ -35,9 +35,11 @@ sqlazo query.sql
 
 sqlazo uses this priority order for database connection settings:
 1. File headers (highest priority)
-2. Environment variables  
+2. Environment variables
 3. `.env` file
 4. Default values (lowest priority)
+
+Database type must be specified via URL, `DB_TYPE`, or a header key like `db_type`.
 
 ### Environment Variables
 
@@ -48,6 +50,16 @@ export DB_USER=myuser
 export DB_PASSWORD=mypassword
 export DB_DATABASE=mydatabase
 export DB_TYPE=mysql
+```
+
+### File Header Example
+
+```sql
+-- db_type: postgresql
+-- host: localhost
+-- db: mydb
+
+SELECT 1;
 ```
 
 ### .env File Support

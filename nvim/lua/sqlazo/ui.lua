@@ -32,12 +32,46 @@ function M.open_float(buf, opts)
   return win
 end
 
+function M.show_help(title, lines)
+  local width = 0
+  for _, line in ipairs(lines) do
+    width = math.max(width, #line)
+  end
+  width = math.min(math.max(width + 4, 36), math.floor(vim.o.columns * 0.8))
+  local height = math.min(#lines, math.floor(vim.o.lines * 0.6))
+
+  local buf = M.create_scratch_buffer({
+    filetype = "sqlazo-help",
+    modifiable = true,
+  })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " " .. title .. " ",
+    title_pos = "center",
+  })
+
+  vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, silent = true })
+  vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, silent = true })
+  vim.keymap.set("n", "g?", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, silent = true })
+
+  return win
+end
+
 -- Create a scratch buffer
 function M.create_scratch_buffer(opts)
   opts = opts or {}
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "bufhidden", opts.bufhidden or "wipe")
   vim.api.nvim_buf_set_option(buf, "swapfile", false)
 
   if opts.filetype then
@@ -63,6 +97,26 @@ function M.open_split(buf, direction)
     vim.cmd("split")
   end
   vim.api.nvim_win_set_buf(0, buf)
+end
+
+function M.open_tab(buf)
+  vim.cmd("tabnew")
+  vim.api.nvim_win_set_buf(0, buf)
+  return vim.api.nvim_get_current_win()
+end
+
+function M.open_panel(buf, opts)
+  opts = opts or {}
+  local position = opts.position or "bottom"
+
+  if position == "right" then
+    vim.cmd("botright vertical " .. tostring(opts.width or 80) .. "split")
+  else
+    vim.cmd("botright " .. tostring(opts.height or 12) .. "split")
+  end
+
+  vim.api.nvim_win_set_buf(0, buf)
+  return vim.api.nvim_get_current_win()
 end
 
 -- Calculate console dimensions

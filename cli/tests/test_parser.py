@@ -47,6 +47,7 @@ SELECT 1;
         assert result.user is None
         assert result.database is None
         assert result.port is None
+        assert result.db_type is None
         assert result.query == "SELECT * FROM users;"
     
     def test_partial_header(self):
@@ -137,7 +138,6 @@ SELECT 1;
             "port": 3306,
             "user": "admin",
             "database": "mydb",
-            "db_type": "mysql",
         }
     
     def test_get_connection_params_partial(self):
@@ -146,7 +146,7 @@ SELECT 1;
         
         params = result.get_connection_params()
         
-        assert params == {"host": "localhost", "db_type": "mysql"}
+        assert params == {"host": "localhost"}
     
     def test_url_format_parsing(self):
         """Test parsing URL format connection string."""
@@ -220,20 +220,52 @@ SELECT 1;
 SELECT 1;
 """
         result = parse_file(content)
-        
+
         assert result.db_type == "mysql"
+
+    def test_mariadb_url_sets_db_type(self):
+        """Test that MariaDB URL is supported as a MySQL-compatible engine."""
+        content = """-- url: mariadb://root:pass@localhost/testdb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+
+        assert result.db_type == "mariadb"
     
-    def test_default_db_type_is_mysql(self):
-        """Test that default db_type is mysql when using key-value format."""
+    def test_db_type_unset_without_url(self):
+        """Test that db_type is unset when not provided."""
         content = """-- host: localhost
 -- db: testdb
 
 SELECT 1;
 """
         result = parse_file(content)
-        
-        assert result.db_type == "mysql"
-    
+
+        assert result.db_type is None
+
+    def test_db_type_header_parsing(self):
+        """Test parsing db_type from header."""
+        content = """-- db_type: postgresql
+-- db: testdb
+
+SELECT 1;
+"""
+        result = parse_file(content)
+
+        assert result.db_type == "postgresql"
+
+    def test_db_type_header_alias(self):
+        """Test parsing db_type from alias header key."""
+        content = """-- engine: sqlite
+-- db: /tmp/test.db
+
+SELECT 1;
+"""
+        result = parse_file(content)
+
+        assert result.db_type == "sqlite"
+
     def test_sqlite_url_format(self):
         """Test parsing SQLite URL format connection string."""
         content = """-- url: sqlite:///path/to/database.db
@@ -243,7 +275,7 @@ SELECT 1;
         result = parse_file(content)
         
         assert result.db_type == "sqlite"
-        assert result.database == "/path/to/database.db"
+        assert result.database == "path/to/database.db"
         assert result.host is None
         assert result.user is None
     
@@ -267,7 +299,18 @@ SELECT 1;
         result = parse_file(content)
         
         assert result.db_type == "sqlite"
-        assert result.database == "/./mydb.sqlite"
+        assert result.database == "./mydb.sqlite"
+
+    def test_sqlite_absolute_path_url(self):
+        """Test parsing SQLite URL with absolute path."""
+        content = """-- url: sqlite:////tmp/mydb.sqlite
+
+SELECT 1;
+"""
+        result = parse_file(content)
+
+        assert result.db_type == "sqlite"
+        assert result.database == "/tmp/mydb.sqlite"
     
     def test_mongodb_url_format(self):
         """Test parsing MongoDB URL format connection string."""

@@ -3,15 +3,15 @@
 import csv
 import io
 import json
-from typing import Literal
+from typing import Any, Literal
 
 from sqlazo.executor import QueryResult
 
 
-OutputFormat = Literal["table", "csv", "json", "record"]
+OutputFormat = Literal["table", "csv", "json", "record", "json-meta"]
 
 
-def format_result(result: QueryResult, fmt: OutputFormat = "table") -> str:
+def format_result(result: QueryResult, fmt: OutputFormat = "table", metadata: dict[str, Any] | None = None) -> str:
     """
     Format a query result for output.
     
@@ -22,6 +22,9 @@ def format_result(result: QueryResult, fmt: OutputFormat = "table") -> str:
     Returns:
         Formatted string representation.
     """
+    if fmt == "json-meta":
+        return _format_json_meta(result, metadata or {})
+
     if not result.is_select:
         if result.last_insert_id:
             return f"Affected rows: {result.affected_rows}, Last insert ID: {result.last_insert_id}"
@@ -37,6 +40,31 @@ def format_result(result: QueryResult, fmt: OutputFormat = "table") -> str:
         return _format_record(result)
     else:
         raise ValueError(f"Unknown format: {fmt}")
+
+
+def _json_safe(value):
+    """Convert values unsupported by JSON into strings."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _format_json_meta(result: QueryResult, metadata: dict[str, Any]) -> str:
+    """Format result and execution metadata for editor integrations."""
+    rows = [
+        [_json_safe(value) for value in row]
+        for row in result.rows
+    ]
+    payload = {
+        "columns": result.columns,
+        "rows": rows,
+        "row_count": len(result.rows),
+        "is_select": result.is_select,
+        "affected_rows": result.affected_rows,
+        "last_insert_id": result.last_insert_id,
+        "metadata": metadata,
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def _format_table(result: QueryResult) -> str:
@@ -137,4 +165,3 @@ def _format_json(result: QueryResult) -> str:
         rows_as_dicts.append(row_dict)
     
     return json.dumps(rows_as_dicts, indent=2, ensure_ascii=False)
-

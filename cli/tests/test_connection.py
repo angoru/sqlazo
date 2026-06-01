@@ -12,6 +12,11 @@ class TestConnectionConfig:
         from sqlazo.connection import ConnectionConfig
         config = ConnectionConfig(db_type="mysql")
         assert config.port == 3306
+
+    def test_default_port_mariadb(self):
+        from sqlazo.connection import ConnectionConfig
+        config = ConnectionConfig(db_type="mariadb")
+        assert config.port == 3306
     
     def test_default_port_postgresql(self):
         from sqlazo.connection import ConnectionConfig
@@ -79,7 +84,7 @@ class TestConnectionConfig:
                 assert config.host == "env.example.com"
                 assert config.port == 9999
                 assert config.user == "envuser"
-                assert config.db_type == "mysql"  # default
+                assert config.db_type is None
         finally:
             os.unlink(env_file)
 
@@ -131,6 +136,12 @@ class TestConnectionConfig:
         config = ConnectionConfig(db_type="mysql", user="u", password="p", database="d")
         errors = config.validate()
         assert errors == []
+
+    def test_validate_missing_db_type(self):
+        from sqlazo.connection import ConnectionConfig
+        config = ConnectionConfig(db_type=None)
+        errors = config.validate()
+        assert "Database type not specified" in errors[0]
 
 
 class TestGetConnection:

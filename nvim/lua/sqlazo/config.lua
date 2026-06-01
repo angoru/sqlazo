@@ -5,9 +5,35 @@ local M = {}
 -- Default configuration
 M.defaults = {
   format = "table",      -- Output format: table, csv, json
-  split = "float",       -- Split direction: horizontal, vertical, float
+  split = "horizontal",  -- Legacy split direction: horizontal, vertical, float
+  result_mode = "panel", -- Result display: panel, split, float, tab
+  result_position = "bottom", -- Panel position: bottom or right
+  reuse_result_buffer = true,
+  result_height = 12,
+  result_width = 80,
   python_cmd = "python", -- Python command (python, python3, etc.)
+  prefer_python = false, -- Use python -m sqlazo even if sqlazo exists in PATH
+  auto_prefer_json_meta = true, -- Prefer python_cmd if PATH sqlazo is old
   safe_mode = true,      -- Confirm before executing destructive queries
+  default_comment_prefix = "--",
+  comment_prefix_by_filetype = {
+    sql = "--",
+    mysql = "--",
+    pgsql = "--",
+    psql = "--",
+    plsql = "--",
+    sqlite = "--",
+    javascript = "//",
+    javascriptreact = "//",
+    typescript = "//",
+    typescriptreact = "//",
+    mongosh = "//",
+    mongo = "//",
+    mongodb = "//",
+    redis = "#",
+    conf = "#",
+  },
+  profile = nil,         -- Default credential profile to use
 }
 
 -- Current configuration (merged with defaults)
