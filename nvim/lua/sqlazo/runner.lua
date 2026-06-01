@@ -56,33 +56,29 @@ function M.supports_json_meta()
   return supports_json_meta
 end
 
-local function build_query_cmd(format, profile)
+local function build_query_cmd(format)
   local cmd = M.get_cmd()
   if M.uses_query_subcommand() then
     table.insert(cmd, "query")
   end
   table.insert(cmd, "-f")
   table.insert(cmd, format or config.get().format)
-  if profile then
-    table.insert(cmd, "--profile")
-    table.insert(cmd, profile)
-  end
   table.insert(cmd, "-")
   return cmd
 end
 
-local function execute(content, format, profile)
-  local output = vim.fn.system(build_query_cmd(format, profile), content)
+local function execute(content, format)
+  local output = vim.fn.system(build_query_cmd(format), content)
   return output, vim.v.shell_error
 end
 
-local function execute_result(content, profile)
+local function execute_result(content)
   if not M.supports_json_meta() then
-    local output, exit_code = execute(content, config.get().format, profile)
+    local output, exit_code = execute(content, config.get().format)
     return { raw_output = output }, output, exit_code
   end
 
-  local output, exit_code = execute(content, "json-meta", profile)
+  local output, exit_code = execute(content, "json-meta")
   if exit_code ~= 0 then
     return nil, output, exit_code
   end
@@ -118,8 +114,8 @@ local function create_result_buffer()
   return buf
 end
 
-local function render_into_buffer(buf, content, profile)
-  local result, error_message, exit_code = execute_result(content, profile)
+local function render_into_buffer(buf, content)
+  local result, error_message, exit_code = execute_result(content)
   if exit_code == 0 then
     results.set_result(buf, result)
     results.setup_keymaps(buf)
@@ -143,11 +139,28 @@ local function sql_literal(value)
   return "'" .. tostring(value):gsub("'", "''") .. "'"
 end
 
+local function like_pattern_literal(value)
+  local text = tostring(value):gsub("'", "''")
+  return "'%" .. text .. "%'"
+end
+
 local function predicate(column, value)
   if value == vim.NIL or value == nil then
     return column .. " IS NULL"
   end
   return column .. " = " .. sql_literal(value)
+end
+
+local function search_predicate(column)
+  if vim.v.hlsearch == 0 then
+    return nil
+  end
+
+  local search = vim.fn.getreg("/")
+  if not search or search == "" then
+    return nil
+  end
+  return column .. " LIKE " .. like_pattern_literal(search)
 end
 
 local function add_filter_to_query(lines, filter)
@@ -185,13 +198,18 @@ local function add_filter_to_query(lines, filter)
   return vim.split(updated, "\n", { plain = true })
 end
 
+local function close_undo_block(buf)
+  vim.api.nvim_buf_call(buf, function()
+    pcall(vim.cmd, "let &g:undolevels = &g:undolevels")
+  end)
+end
+
 function M.filter_by_selected_value(result_buf)
   result_buf = result_buf or vim.api.nvim_get_current_buf()
   local source_buf = vim.b[result_buf].sqlazo_source_buf
   local query_start = vim.b[result_buf].sqlazo_query_start
   local query_end = vim.b[result_buf].sqlazo_query_end
   local header_lines = vim.b[result_buf].sqlazo_header_lines or {}
-  local profile = vim.b[result_buf].sqlazo_profile
   local cell = results.selected_cell(result_buf)
 
   if not source_buf or not vim.api.nvim_buf_is_valid(source_buf) or not query_start or not query_end then
@@ -203,13 +221,16 @@ function M.filter_by_selected_value(result_buf)
     return
   end
 
+  local filter = search_predicate(cell.column) or predicate(cell.column, cell.value)
   local query_lines = vim.api.nvim_buf_get_lines(source_buf, query_start - 1, query_end, false)
-  local updated = add_filter_to_query(query_lines, predicate(cell.column, cell.value))
+  local updated = add_filter_to_query(query_lines, filter)
+  close_undo_block(source_buf)
   vim.api.nvim_buf_set_lines(source_buf, query_start - 1, query_end, false, updated)
+  close_undo_block(source_buf)
   vim.b[result_buf].sqlazo_query_end = query_start + #updated - 1
 
-  vim.api.nvim_echo({ { "sqlazo: Added filter " .. cell.column .. " = " .. tostring(cell.value), "Normal" } }, true, {})
-  render_into_buffer(result_buf, parser.build_content(header_lines, updated), profile)
+  vim.api.nvim_echo({ { "sqlazo: Added filter " .. filter, "Normal" } }, true, {})
+  render_into_buffer(result_buf, parser.build_content(header_lines, updated))
 end
 
 function M.run(opts)
@@ -232,8 +253,7 @@ function M.run(opts)
     vim.b[buf].sqlazo_query_start = query_start
     vim.b[buf].sqlazo_query_end = query_end
     vim.b[buf].sqlazo_header_lines = header_lines
-    vim.b[buf].sqlazo_profile = opts.profile
-    render_into_buffer(buf, content, opts.profile)
+    render_into_buffer(buf, content)
   end
 
   if config.get().safe_mode then

@@ -1,66 +1,47 @@
-"""Database handler registry."""
+"""SQL database handler registry."""
 
-from typing import Dict, List, Optional, Type
+from importlib import import_module
+from typing import Optional
+
 from sqlazo.databases.base import DatabaseHandler
 
-
-# Registry of handlers by scheme
-_handlers: Dict[str, DatabaseHandler] = {}
-_handler_instances: Dict[str, DatabaseHandler] = {}
-
-
-def register_handler(handler_class: Type[DatabaseHandler]) -> None:
-    """Register a database handler for its schemes."""
-    instance = handler_class()
-    for scheme in handler_class.schemes:
-        _handlers[scheme.lower()] = handler_class
-        _handler_instances[scheme.lower()] = instance
+_HANDLER_CLASSES = {
+    "mysql": ("sqlazo.databases.mysql", "MySQLHandler"),
+    "mariadb": ("sqlazo.databases.mysql", "MySQLHandler"),
+    "postgresql": ("sqlazo.databases.postgresql", "PostgreSQLHandler"),
+    "postgres": ("sqlazo.databases.postgresql", "PostgreSQLHandler"),
+    "sqlite": ("sqlazo.databases.sqlite", "SQLiteHandler"),
+}
+_HANDLERS: dict[str, DatabaseHandler] = {}
 
 
 def get_handler(scheme: str) -> Optional[DatabaseHandler]:
-    """Get handler instance for a URL scheme."""
-    return _handler_instances.get(scheme.lower())
+    """Return the SQL handler for a URL scheme."""
+    key = scheme.lower()
+    if key in _HANDLERS:
+        return _HANDLERS[key]
+
+    handler_ref = _HANDLER_CLASSES.get(key)
+    if not handler_ref:
+        return None
+
+    module_name, class_name = handler_ref
+    module = import_module(module_name)
+    handler = getattr(module, class_name)()
+    _HANDLERS[key] = handler
+    return handler
 
 
 def get_handler_for_db_type(db_type: str) -> Optional[DatabaseHandler]:
-    """Get handler instance for a database type."""
-    # db_type is typically the same as scheme, but handle aliases
+    """Return the SQL handler for a configured database type."""
     return get_handler(db_type)
 
 
-def get_all_handlers() -> List[DatabaseHandler]:
-    """Get all registered handler instances (deduplicated)."""
-    seen = set()
-    handlers = []
-    for instance in _handler_instances.values():
-        if id(instance) not in seen:
-            seen.add(id(instance))
-            handlers.append(instance)
-    return handlers
+def get_all_comment_prefixes() -> list[str]:
+    """Return supported header comment prefixes."""
+    return ["--"]
 
 
-def get_all_comment_prefixes() -> List[str]:
-    """Get all comment prefixes from all handlers."""
-    prefixes = set()
-    for handler in get_all_handlers():
-        prefixes.update(handler.comment_prefixes)
-    return list(prefixes)
-
-
-def get_all_schemes() -> List[str]:
-    """Get all registered URL schemes."""
-    return list(_handlers.keys())
-
-
-# Import and register all handlers
-from sqlazo.databases.mysql import MySQLHandler
-from sqlazo.databases.postgresql import PostgreSQLHandler
-from sqlazo.databases.sqlite import SQLiteHandler
-from sqlazo.databases.mongodb import MongoDBHandler
-from sqlazo.databases.redis import RedisHandler
-
-register_handler(MySQLHandler)
-register_handler(PostgreSQLHandler)
-register_handler(SQLiteHandler)
-register_handler(MongoDBHandler)
-register_handler(RedisHandler)
+def get_all_schemes() -> list[str]:
+    """Return supported URL schemes."""
+    return sorted(_HANDLER_CLASSES)

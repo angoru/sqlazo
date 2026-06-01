@@ -9,7 +9,6 @@ function M.setup()
   vim.api.nvim_create_user_command("SqlazoRun", function()
     runner.run({
       format = config.get().format,
-      profile = config.get().profile,
     })
   end, { desc = "Execute query at cursor" })
 

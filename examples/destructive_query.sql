@@ -1,8 +1,11 @@
--- url: mysql://myuser:mypassword@localhost:3306/mydb
+-- dbtype: mysql
+-- host: db.example.local
+-- port: 3306
+-- user: app_user
+-- database: app_db
 
 -- Example: Destructive query that will trigger safety confirmation
--- When you run this with :SqlazoConsole or :SqlazoRun, 
--- you'll see: "⚠️ Query contains UPDATE. Execute anyway?"
+-- When you run this with :SqlazoRun, sqlazo.nvim asks for confirmation.
 
 UPDATE users 
 SET name = 'test_name' 

@@ -6,7 +6,6 @@ from typing import Optional, Any
 
 from dotenv import load_dotenv
 from sqlazo.databases import get_handler_for_db_type
-from sqlazo.secure_credentials import SecureCredentialManager
 
 
 @dataclass
@@ -19,7 +18,6 @@ class ConnectionConfig:
     password: Optional[str] = None
     database: Optional[str] = None
     db_type: Optional[str] = None
-    connection_string: Optional[str] = None  # For MongoDB connection strings
     
     def __post_init__(self):
         """Set default port based on database type if not specified."""
@@ -90,7 +88,6 @@ class ConnectionConfig:
             password=file_params.get("password", self.password),
             database=file_params.get("database", self.database),
             db_type=new_db_type,
-            connection_string=file_params.get("connection_string", self.connection_string),
         )
     
     def validate(self) -> list[str]:
@@ -124,31 +121,3 @@ def get_connection(config: ConnectionConfig) -> Any:
     if handler:
         return handler.get_connection(config)
     raise ValueError(f"Unknown database type: {config.db_type}")
-
-
-def load_connection_from_profile(profile_name: str, master_password: Optional[str] = None) -> ConnectionConfig:
-    """
-    Load connection configuration from a stored profile.
-
-    Args:
-        profile_name: Name of the credential profile to load
-        master_password: Master password for decryption. If None, will prompt user.
-
-    Returns:
-        ConnectionConfig object with loaded credentials
-    """
-    cred_manager = SecureCredentialManager()
-    credentials = cred_manager.retrieve_credentials(profile_name, master_password)
-
-    if not credentials:
-        raise ValueError(f"Could not retrieve credentials for profile '{profile_name}'")
-
-    # Map retrieved credentials to ConnectionConfig
-    return ConnectionConfig(
-        host=credentials.get('host', 'localhost'),
-        port=credentials.get('port'),
-        user=credentials.get('user'),
-        password=credentials.get('password'),
-        database=credentials.get('database'),
-        db_type=credentials.get('db_type')
-    )

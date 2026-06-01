@@ -23,16 +23,6 @@ class TestConnectionConfig:
         config = ConnectionConfig(db_type="postgresql")
         assert config.port == 5432
     
-    def test_default_port_redis(self):
-        from sqlazo.connection import ConnectionConfig
-        config = ConnectionConfig(db_type="redis")
-        assert config.port == 6379
-    
-    def test_default_port_mongodb(self):
-        from sqlazo.connection import ConnectionConfig
-        config = ConnectionConfig(db_type="mongodb")
-        assert config.port == 27017
-    
     def test_default_port_sqlite_none(self):
         from sqlazo.connection import ConnectionConfig
         config = ConnectionConfig(db_type="sqlite")
@@ -147,7 +137,7 @@ class TestConnectionConfig:
 class TestGetConnection:
     """Tests for get_connection function."""
     
-    @patch("sqlazo.databases.mysql.mysql.connector.connect")
+    @patch("sqlazo.databases.mysql.mysql_connector.connect")
     def test_get_connection_mysql(self, mock_connect):
         from sqlazo.connection import ConnectionConfig, get_connection
         config = ConnectionConfig(

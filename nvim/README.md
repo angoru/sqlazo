@@ -33,6 +33,11 @@ Minimal Neovim plugin for running the SQL query at the cursor through the
 |-----|--------|
 | `h`/`j`/`k`/`l` | Move selected result cell |
 | `f` | Filter source query by selected cell |
+| `y` | Yank selected cell |
+
+If a search is active in the result buffer, `f` filters the selected column with
+`LIKE '%search%'`. Without an active search, it filters by exact cell value.
+Each filter edits the source query as one undo step.
 
 ## Autocomplete
 
@@ -57,6 +62,5 @@ require("sqlazo").setup({
   python_cmd = "python",
   prefer_python = false,
   safe_mode = true,
-  profile = nil,
 })
 ```

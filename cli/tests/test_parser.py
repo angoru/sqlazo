@@ -312,94 +312,11 @@ SELECT 1;
         assert result.db_type == "sqlite"
         assert result.database == "/tmp/mydb.sqlite"
     
-    def test_mongodb_url_format(self):
-        """Test parsing MongoDB URL format connection string."""
-        content = """-- url: mongodb://admin:secret@mongohost:27017/testdb
-
-db.users.find({})
-"""
-        result = parse_file(content)
-        
-        assert result.host == "mongohost"
-        assert result.port == 27017
-        assert result.user == "admin"
-        assert result.password == "secret"
-        assert result.database == "testdb"
-        assert result.db_type == "mongodb"
-    
-    def test_mongodb_srv_url_format(self):
-        """Test parsing MongoDB SRV URL format."""
-        content = """-- url: mongodb+srv://user:pass@cluster.mongodb.net/mydb
-
-db.users.find({})
-"""
-        result = parse_file(content)
-        
-        assert result.db_type == "mongodb"
-        assert result.host == "cluster.mongodb.net"
-        assert result.database == "mydb"
-    
-    def test_mongodb_url_stores_connection_string(self):
-        """Test that MongoDB URL is stored for pymongo."""
-        content = """-- url: mongodb://localhost:27017/testdb
-
-db.users.find({})
-"""
-        result = parse_file(content)
-        params = result.get_connection_params()
-        
-        assert "connection_string" in params
-        assert params["connection_string"] == "mongodb://localhost:27017/testdb"
-    
-    def test_redis_url_format(self):
-        """Test parsing Redis URL format connection string."""
-        content = """# url: redis://localhost:6379/0
+    def test_unsupported_url_scheme(self):
+        """Test unsupported URL schemes fail clearly."""
+        content = """-- url: redis://localhost:6379/0
 
 GET mykey
 """
-        result = parse_file(content)
-        
-        assert result.host == "localhost"
-        assert result.port == 6379
-        assert result.database == 0
-        assert result.db_type == "redis"
-    
-    def test_redis_url_with_auth(self):
-        """Test parsing Redis URL with authentication."""
-        content = """# url: redis://user:secret@redishost:6380/1
-
-GET mykey
-"""
-        result = parse_file(content)
-        
-        assert result.host == "redishost"
-        assert result.port == 6380
-        assert result.user == "user"
-        assert result.password == "secret"
-        assert result.database == 1
-        assert result.db_type == "redis"
-    
-    def test_redis_url_minimal(self):
-        """Test parsing Redis URL with minimal info."""
-        content = """# url: redis://localhost
-
-PING
-"""
-        result = parse_file(content)
-        
-        assert result.host == "localhost"
-        assert result.db_type == "redis"
-        assert result.database is None
-    
-    def test_redis_hash_comment_header(self):
-        """Test that # comments work as headers for Redis files."""
-        content = """# url: redis://localhost:6379/2
-# This is a comment in the query
-
-GET key
-"""
-        result = parse_file(content)
-        
-        assert result.db_type == "redis"
-        assert result.database == 2
-        assert "# This is a comment in the query" in result.query
+        with pytest.raises(ValueError, match="Unsupported database URL scheme"):
+            parse_file(content)

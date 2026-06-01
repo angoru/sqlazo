@@ -12,7 +12,11 @@ pip install -e .
 ## Quick Start
 
 ```sql
--- url: mysql://user:pass@localhost:3306/mydb
+-- dbtype: mysql
+-- host: db.example.local
+-- port: 3306
+-- user: app_user
+-- database: app_db
 
 SELECT * FROM users LIMIT 10;
 ```
@@ -24,10 +28,9 @@ sqlazo query.sql
 ## Supported Databases
 
 - MySQL
-- PostgreSQL  
+- MariaDB
+- PostgreSQL
 - SQLite
-- MongoDB
-- Redis
 
 ## Configuration
 
@@ -46,9 +49,9 @@ Database type must be specified via URL, `DB_TYPE`, or a header key like `db_typ
 ```bash
 export DB_HOST=localhost
 export DB_PORT=3306
-export DB_USER=myuser
-export DB_PASSWORD=mypassword
-export DB_DATABASE=mydatabase
+export DB_USER=app_user
+export DB_PASSWORD='<set outside committed files>'
+export DB_DATABASE=app_db
 export DB_TYPE=mysql
 ```
 
@@ -69,9 +72,9 @@ Create a `.env` file in your working directory:
 ```
 DB_HOST=localhost
 DB_PORT=3306
-DB_USER=myuser
-DB_PASSWORD=mypassword
-DB_DATABASE=mydatabase
+DB_USER=app_user
+DB_PASSWORD=<set outside committed files>
+DB_DATABASE=app_db
 DB_TYPE=mysql
 ```
 
@@ -84,6 +87,8 @@ sqlazo file.sql              # Table format (default)
 sqlazo file.sql -f record    # One field per line
 sqlazo file.sql -f json      # JSON output
 sqlazo file.sql -f csv       # CSV output
+sqlazo file.sql -f json-meta # JSON with metadata for editor integrations
+sqlazo file.sql --schema     # JSON schema for autocomplete
 sqlazo file.sql -v           # Verbose
 ```
 

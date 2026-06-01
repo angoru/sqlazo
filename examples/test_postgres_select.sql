@@ -1,3 +1,7 @@
--- url: postgresql://myuser:mypassword@localhost:5432/mydb
+-- dbtype: postgresql
+-- host: db.example.local
+-- port: 5432
+-- user: app_user
+-- database: app_db
 
-SELECT * FROM test_sqlazo where name='Bob';
+SELECT * FROM test_sqlazo WHERE name = 'sample_two';

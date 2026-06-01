@@ -75,7 +75,6 @@ local function cache_key(lines)
   for _, line in ipairs(parser.get_header(lines)) do
     table.insert(parts, line)
   end
-  table.insert(parts, "profile=" .. tostring(config.get().profile))
   return table.concat(parts, "\n")
 end
 
@@ -92,10 +91,6 @@ function M.get(force_refresh)
     table.insert(cmd, "query")
   end
   table.insert(cmd, "--schema")
-  if config.get().profile then
-    table.insert(cmd, "--profile")
-    table.insert(cmd, config.get().profile)
-  end
   table.insert(cmd, "-")
 
   local output = vim.fn.system(cmd, content)

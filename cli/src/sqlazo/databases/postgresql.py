@@ -1,12 +1,15 @@
 """PostgreSQL database handler."""
 
 from typing import Any
+from types import SimpleNamespace
 from urllib.parse import ParseResult, unquote
 
-import psycopg2
-from psycopg2.extensions import connection as PostgreSQLConnection
-
 from sqlazo.databases.base import DatabaseHandler, QueryResult
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = SimpleNamespace(connect=None)
 
 
 class PostgreSQLHandler(DatabaseHandler):
@@ -48,6 +51,9 @@ class PostgreSQLHandler(DatabaseHandler):
     
     def get_connection(self, config) -> Any:
         """Create PostgreSQL connection."""
+        if psycopg2.connect is None:
+            raise RuntimeError("psycopg2-binary is required for PostgreSQL connections.")
+
         kwargs = {
             "host": config.host,
             "port": config.port or self.default_port,

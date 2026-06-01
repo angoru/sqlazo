@@ -5,7 +5,7 @@ import io
 import json
 from typing import Any, Literal
 
-from sqlazo.executor import QueryResult
+from sqlazo.databases.base import QueryResult
 
 
 OutputFormat = Literal["table", "csv", "json", "record", "json-meta"]

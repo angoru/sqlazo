@@ -31,13 +31,13 @@ class QueryResult:
 class DatabaseHandler(ABC):
     """Abstract base class for database handlers."""
     
-    # URL schemes this handler supports (e.g., ["redis"], ["mongodb", "mongodb+srv"])
+    # URL schemes this handler supports (e.g., ["mysql"], ["postgresql", "postgres"])
     schemes: list[str] = []
     
     # Default port for this database
     default_port: int = None
     
-    # Comment prefixes for header parsing (e.g., ["--"] for SQL, ["#"] for Redis)
+    # Comment prefixes for header parsing.
     comment_prefixes: list[str] = ["--"]
     
     # Whether this database requires user/password

@@ -1,12 +1,15 @@
 """MySQL database handler."""
 
 from typing import Any
+from types import SimpleNamespace
 from urllib.parse import ParseResult, unquote
 
-import mysql.connector
-from mysql.connector.errors import Error as MySQLError
-
 from sqlazo.databases.base import DatabaseHandler, QueryResult
+
+try:
+    import mysql.connector as mysql_connector
+except ImportError:
+    mysql_connector = SimpleNamespace(connect=None)
 
 
 class MySQLHandler(DatabaseHandler):
@@ -48,6 +51,9 @@ class MySQLHandler(DatabaseHandler):
     
     def get_connection(self, config) -> Any:
         """Create MySQL connection."""
+        if mysql_connector.connect is None:
+            raise RuntimeError("mysql-connector-python is required for MySQL/MariaDB connections.")
+
         kwargs = {
             "host": config.host,
             "port": config.port or self.default_port,
@@ -59,7 +65,7 @@ class MySQLHandler(DatabaseHandler):
         if config.database:
             kwargs["database"] = config.database
         
-        return mysql.connector.connect(**kwargs)
+        return mysql_connector.connect(**kwargs)
     
     def execute_query(self, connection: Any, query: str) -> QueryResult:
         """Execute MySQL query."""

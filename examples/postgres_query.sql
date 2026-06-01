@@ -1,3 +1,7 @@
--- url: postgresql://myuser:mypassword@localhost:5432/mydb
+-- dbtype: postgresql
+-- host: db.example.local
+-- port: 5432
+-- user: app_user
+-- database: app_db
 
 SELECT * FROM test_sqlazo LIMIT 10;

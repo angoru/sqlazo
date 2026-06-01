@@ -16,9 +16,7 @@ M.defaults = {
     plsql = "--",
     sqlite = "--",
     javascript = "//",
-    redis = "#",
   },
-  profile = nil,
 }
 
 M.config = vim.tbl_deep_extend("force", {}, M.defaults)

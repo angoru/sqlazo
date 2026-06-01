@@ -19,8 +19,6 @@ class ParsedFile:
     password: Optional[str] = None
     database: Optional[str] = None
     db_type: Optional[str] = None
-    connection_string: Optional[str] = None  # For MongoDB connection strings
-    
     # The SQL query content
     query: str = ""
     
@@ -39,8 +37,6 @@ class ParsedFile:
             params["database"] = self.database
         if self.db_type:
             params["db_type"] = self.db_type
-        if self.connection_string:
-            params["connection_string"] = self.connection_string
         return params
 
 
@@ -87,9 +83,7 @@ def parse_url(url: str) -> dict:
         params["db_type"] = "mariadb"
         return params
 
-    # Default to MySQL for unknown schemes
-    from sqlazo.databases.mysql import MySQLHandler
-    return MySQLHandler().parse_url(parsed, url)
+    raise ValueError(f"Unsupported database URL scheme: {scheme}")
 
 
 def parse_file(content: str) -> ParsedFile:
@@ -123,7 +117,7 @@ def parse_file(content: str) -> ParsedFile:
     escaped_prefixes = [re.escape(p) for p in comment_prefixes]
     prefix_pattern = "|".join(escaped_prefixes)
     
-    # Pattern to match header comments: -- key: value OR // key: value OR # key: value
+    # Pattern to match header comments: -- key: value
     header_pattern = re.compile(rf"^(?:{prefix_pattern})\s*(\w+)\s*:\s*(.+?)\s*$")
     
     for line in lines:

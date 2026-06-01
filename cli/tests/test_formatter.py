@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from sqlazo.executor import QueryResult
+from sqlazo.databases.base import QueryResult
 from sqlazo.formatter import format_result
 
 

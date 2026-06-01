@@ -38,7 +38,7 @@ class TestMySQLHandler:
         errors = handler.validate_config(config)
         assert errors == []
     
-    @patch("sqlazo.databases.mysql.mysql.connector.connect")
+    @patch("sqlazo.databases.mysql.mysql_connector.connect")
     def test_get_connection(self, mock_connect):
         from sqlazo.databases.mysql import MySQLHandler
         handler = MySQLHandler()
@@ -46,7 +46,7 @@ class TestMySQLHandler:
         handler.get_connection(config)
         mock_connect.assert_called_once()
     
-    @patch("sqlazo.databases.mysql.mysql.connector.connect")
+    @patch("sqlazo.databases.mysql.mysql_connector.connect")
     def test_execute_query_select(self, mock_connect):
         from sqlazo.databases.mysql import MySQLHandler
         handler = MySQLHandler()
@@ -64,7 +64,7 @@ class TestMySQLHandler:
         assert result.rows == [(1, "Alice"), (2, "Bob")]
         assert result.is_select == True
     
-    @patch("sqlazo.databases.mysql.mysql.connector.connect")
+    @patch("sqlazo.databases.mysql.mysql_connector.connect")
     def test_execute_query_insert(self, mock_connect):
         from sqlazo.databases.mysql import MySQLHandler
         handler = MySQLHandler()
@@ -162,98 +162,3 @@ class TestSQLiteHandler:
         
         assert result.columns == ["col1", "col2"]
         assert result.is_select == True
-
-
-class TestRedisHandler:
-    """Tests for RedisHandler."""
-    
-    def test_validate_config_missing_host(self):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        config = Mock(host=None)
-        errors = handler.validate_config(config)
-        assert len(errors) == 1
-        assert "host not specified" in errors[0]
-    
-    def test_validate_config_valid(self):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        config = Mock(host="localhost")
-        errors = handler.validate_config(config)
-        assert errors == []
-    
-    @patch("sqlazo.databases.redis.redis_client.Redis")
-    def test_get_connection(self, mock_redis):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        config = Mock(host="localhost", port=6379, user=None, password=None, database=0)
-        handler.get_connection(config)
-        mock_redis.assert_called_once()
-
-    @patch("sqlazo.databases.redis.redis_client.Redis")
-    def test_get_connection_db_string(self, mock_redis):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        config = Mock(host="localhost", port=6379, user=None, password=None, database="2")
-        handler.get_connection(config)
-        _, kwargs = mock_redis.call_args
-        assert kwargs["db"] == 2
-    
-    @patch("sqlazo.databases.redis.redis_client.Redis")
-    def test_execute_query_ping(self, mock_redis):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        
-        mock_conn = MagicMock()
-        mock_conn.execute_command.return_value = True
-        
-        result = handler.execute_query(mock_conn, "PING")
-        
-        mock_conn.execute_command.assert_called_with("PING")
-        assert result.is_select == True
-    
-    def test_parse_command(self):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        
-        parts = handler._parse_command('SET foo "hello world"')
-        assert parts == ["SET", "foo", "hello world"]
-    
-    def test_format_value_nil(self):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        assert handler._format_value(None) == "(nil)"
-    
-    def test_format_value_list(self):
-        from sqlazo.databases.redis import RedisHandler
-        handler = RedisHandler()
-        result = handler._format_value(["a", "b"])
-        assert "1) a" in result
-        assert "2) b" in result
-
-
-class TestMongoDBHandler:
-    """Tests for MongoDBHandler."""
-    
-    def test_validate_config_missing_host(self):
-        from sqlazo.databases.mongodb import MongoDBHandler
-        handler = MongoDBHandler()
-        config = Mock(connection_string=None, host=None, database="test")
-        errors = handler.validate_config(config)
-        assert len(errors) == 1
-        assert "host or connection string" in errors[0]
-    
-    def test_validate_config_missing_database(self):
-        from sqlazo.databases.mongodb import MongoDBHandler
-        handler = MongoDBHandler()
-        config = Mock(connection_string=None, host="localhost", database=None)
-        errors = handler.validate_config(config)
-        assert len(errors) == 1
-        assert "Database not specified" in errors[0]
-    
-    def test_validate_config_valid(self):
-        from sqlazo.databases.mongodb import MongoDBHandler
-        handler = MongoDBHandler()
-        config = Mock(connection_string="mongodb://localhost:27017/test", host="localhost", database="test")
-        errors = handler.validate_config(config)
-        assert errors == []

@@ -11,6 +11,10 @@ local function stringify(value)
   return tostring(value)
 end
 
+local function set_register(name, value)
+  pcall(vim.fn.setreg, name, value)
+end
+
 local function cell_bounds(buf, row, col)
   local meta = vim.b[buf].sqlazo_result_meta
   if not meta or not meta.widths then
@@ -90,6 +94,21 @@ function M.selected_cell(buf)
     row = selection.row,
     col = selection.col,
   }
+end
+
+function M.yank_selected_cell(buf)
+  local cell = M.selected_cell(buf)
+  if not cell then
+    vim.api.nvim_echo({ { "sqlazo: No selected result cell", "WarningMsg" } }, true, {})
+    return
+  end
+
+  local value = stringify(cell.value)
+  set_register('"', value)
+  set_register("0", value)
+  set_register("+", value)
+  set_register("*", value)
+  vim.api.nvim_echo({ { "sqlazo: Yanked " .. value, "Normal" } }, true, {})
 end
 
 local function render_table(result)
@@ -179,6 +198,12 @@ function M.setup_keymaps(buf)
   vim.keymap.set("n", "f", function() require("sqlazo.runner").filter_by_selected_value(buf) end, {
     buffer = buf,
     desc = "Filter source query by selected cell",
+  })
+  vim.keymap.set("n", "y", function() M.yank_selected_cell(buf) end, {
+    buffer = buf,
+    desc = "Yank selected cell",
+    nowait = true,
+    silent = true,
   })
 end
 
