@@ -25,9 +25,6 @@ pub fn parse_file(content: &str) -> Result<ParsedFile> {
             apply_header(&mut connection, &key, &value)?;
         } else if stripped.is_empty() {
             header_ended = true;
-        } else if stripped.starts_with("--") {
-            header_ended = true;
-            query_lines.push(line);
         } else {
             header_ended = true;
             query_lines.push(line);

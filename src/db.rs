@@ -287,7 +287,6 @@ fn format_datetime_utc(value: DateTime<Utc>) -> String {
 
 fn returns_rows(query: &str) -> bool {
     let first = executable_sql(query)
-        .trim_start()
         .split_whitespace()
         .next()
         .unwrap_or("")
