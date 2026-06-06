@@ -1,29 +1,41 @@
 # sqlazo
 
-Execute SQL queries from files with connection headers.
+Run SQL queries from Neovim through a single `sqlazo` binary.
 
 `sqlazo` has two parts:
 
-- a Python CLI that reads connection settings from SQL file headers or environment variables
-- a small Neovim plugin that runs the query at the cursor and works with the result buffer
+- a Rust CLI binary that reads connection settings from SQL file headers, environment variables, or `.env`
+- a Neovim plugin that runs the query at the cursor and renders a navigable result buffer
 
-## Components
+## Requirements
 
-| Component        | Description                              |
-| ---------------- | ---------------------------------------- |
-| [cli/](./cli/)   | Python CLI tool - `pip install -e ./cli` |
-| [nvim/](./nvim/) | Neovim plugin - add to runtimepath       |
+- Rust toolchain for building the binary
+- Neovim 0.8+
+- `sqlazo` binary in `PATH`, or configure `sqlazo_cmd`
 
-## Quick Start
-
-### CLI
+## Build
 
 ```bash
-cd cli && pip install -e .
-sqlazo query path/to/query.sql
+cargo build --release
 ```
 
-SQL files can include connection settings in header comments:
+The binary is written to:
+
+```bash
+target/release/sqlazo
+```
+
+## CLI Surface
+
+The Rust CLI intentionally implements the process API used by the Neovim plugin:
+
+```bash
+sqlazo query -f json-meta -
+sqlazo query --schema -
+```
+
+Both commands read SQL content from stdin. SQL files can include connection
+settings in header comments:
 
 ```sql
 -- dbtype: mariadb
@@ -35,21 +47,38 @@ SQL files can include connection settings in header comments:
 SELECT * FROM users LIMIT 10;
 ```
 
-You can also read the query from stdin:
+You can also use connection URLs:
 
-```bash
-sqlazo query -f table -
+```sql
+-- url: sqlite:///./app.db
+
+SELECT * FROM users;
 ```
 
-Available output formats:
+Connection priority is:
 
-- `table`
-- `csv`
-- `json`
-- `record`
-- `json-meta`
+1. SQL header
+2. `DB_*` environment variables
+3. `.env`
+4. defaults
 
-### Neovim (lazy.nvim)
+Supported environment variables:
+
+- `DB_TYPE`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_DATABASE`
+
+## Supported Databases
+
+- SQLite (`sqlite:///`)
+- PostgreSQL (`postgresql://`, `postgres://`)
+- MySQL (`mysql://`)
+- MariaDB (`mariadb://`)
+
+## Neovim
 
 ```lua
 {
@@ -57,8 +86,7 @@ Available output formats:
   ft = { "sql", "mysql", "pgsql", "psql", "sqlite" },
   config = function()
     require("sqlazo").setup({
-      python_cmd = "/path/to/python",
-      prefer_python = true,
+      sqlazo_cmd = "sqlazo",
     })
   end,
 }
@@ -78,12 +106,6 @@ The result buffer supports:
 | `f` | Filter the source query by the selected cell and rerun |
 | `y` | Yank the selected cell |
 
-Filtering edits the source query physically. Each filter is one undo step, so
-`u` walks back filters one by one.
-
-If a search is active in the result buffer, `f` filters the selected column with
-`LIKE '%search%'`. Without an active search, it filters by exact cell value.
-
 Optional autocomplete through `nvim-cmp`:
 
 ```lua
@@ -98,38 +120,3 @@ require("sqlazo").setup_cmp()
 
 Autocomplete suggests tables after `FROM`/`JOIN` and fields from referenced
 tables in `WHERE`, `AND`, `OR`, `ON`, and `ORDER BY`.
-
-## Supported Databases
-
-- MySQL (`mysql://`)
-- PostgreSQL (`postgresql://`)
-- SQLite (`sqlite:///`)
-
-## Examples
-
-See [examples/](./examples/) for sample query files and [nvim/README.md](./nvim/README.md)
-for plugin-specific details.
-
-## Versioning
-
-This project follows [Semantic Versioning](https://semver.org/).
-
-### Updating
-
-If you installed via `pipx` (recommended):
-
-```bash
-# Update to the latest version
-pipx upgrade sqlazo
-
-# If installed from local source and source changed
-pipx reinstall sqlazo
-```
-
-## License
-
-MIT
-
----
-
-![Made with AI](https://img.shields.io/badge/Made%20with-AI-blue)

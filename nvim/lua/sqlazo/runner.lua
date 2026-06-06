@@ -6,63 +6,18 @@ local config = require("sqlazo.config")
 local parser = require("sqlazo.parser")
 local results = require("sqlazo.results")
 
-local supports_query_subcommand
-local supports_json_meta
-
-local function python_cmd()
-  local cmd = vim.split(config.get().python_cmd, "%s+", { trimempty = true })
-  table.insert(cmd, "-m")
-  table.insert(cmd, "sqlazo")
-  return cmd
-end
-
 function M.get_cmd()
-  local cfg = config.get()
-  if cfg.prefer_python or cfg.python_cmd ~= "python" or vim.fn.executable("sqlazo") ~= 1 then
-    return python_cmd()
-  end
-  return { "sqlazo" }
+  return vim.split(config.get().sqlazo_cmd, "%s+", { trimempty = true })
 end
 
 function M.reset_detection_cache()
-  supports_query_subcommand = nil
-  supports_json_meta = nil
-end
-
-function M.uses_query_subcommand()
-  if supports_query_subcommand ~= nil then
-    return supports_query_subcommand
-  end
-
-  local cmd = M.get_cmd()
-  table.insert(cmd, "--help")
-  local help = vim.fn.system(cmd)
-  supports_query_subcommand = vim.v.shell_error == 0 and help:match("query") ~= nil
-  return supports_query_subcommand
-end
-
-function M.supports_json_meta()
-  if supports_json_meta ~= nil then
-    return supports_json_meta
-  end
-
-  local cmd = M.get_cmd()
-  if M.uses_query_subcommand() then
-    table.insert(cmd, "query")
-  end
-  table.insert(cmd, "--help")
-  local help = vim.fn.system(cmd)
-  supports_json_meta = vim.v.shell_error == 0 and help:match("json%-meta") ~= nil
-  return supports_json_meta
 end
 
 local function build_query_cmd(format)
   local cmd = M.get_cmd()
-  if M.uses_query_subcommand() then
-    table.insert(cmd, "query")
-  end
+  table.insert(cmd, "query")
   table.insert(cmd, "-f")
-  table.insert(cmd, format or config.get().format)
+  table.insert(cmd, format or "json-meta")
   table.insert(cmd, "-")
   return cmd
 end
@@ -73,11 +28,6 @@ local function execute(content, format)
 end
 
 local function execute_result(content)
-  if not M.supports_json_meta() then
-    local output, exit_code = execute(content, config.get().format)
-    return { raw_output = output }, output, exit_code
-  end
-
   local output, exit_code = execute(content, "json-meta")
   if exit_code ~= 0 then
     return nil, output, exit_code
