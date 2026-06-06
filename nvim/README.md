@@ -1,12 +1,12 @@
 # sqlazo.nvim
 
 Minimal Neovim plugin for running the SQL query at the cursor through the
-`sqlazo` CLI.
+`sqlazo` binary.
 
 ## Requirements
 
 - Neovim 0.8+
-- `sqlazo` CLI in `PATH`, or configure `python_cmd`
+- `sqlazo` binary in `PATH`, or configure `sqlazo_cmd`
 
 ## Installation
 
@@ -15,7 +15,9 @@ Minimal Neovim plugin for running the SQL query at the cursor through the
   dir = "/path/to/sqlazo/nvim",
   ft = { "sql", "mysql", "pgsql", "psql", "sqlite" },
   config = function()
-    require("sqlazo").setup()
+    require("sqlazo").setup({
+      sqlazo_cmd = "sqlazo",
+    })
   end,
 }
 ```
@@ -58,9 +60,7 @@ from referenced tables in `WHERE`, `AND`, `OR`, `ON`, and `ORDER BY`.
 
 ```lua
 require("sqlazo").setup({
-  format = "table",
-  python_cmd = "python",
-  prefer_python = false,
+  sqlazo_cmd = "sqlazo",
   safe_mode = true,
 })
 ```

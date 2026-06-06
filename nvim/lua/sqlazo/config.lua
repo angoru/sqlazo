@@ -3,9 +3,7 @@
 local M = {}
 
 M.defaults = {
-  format = "table",
-  python_cmd = "python",
-  prefer_python = false,
+  sqlazo_cmd = "sqlazo",
   safe_mode = true,
   default_comment_prefix = "--",
   comment_prefix_by_filetype = {

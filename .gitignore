@@ -40,6 +40,9 @@ htmlcov/
 .tox/
 .nox/
 
+# Rust
+target/
+
 # mypy
 .mypy_cache/
 

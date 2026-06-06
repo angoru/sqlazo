@@ -87,9 +87,7 @@ function M.get(force_refresh)
 
   local content = table.concat(parser.get_header(lines), "\n") .. "\n\nSELECT 1;"
   local cmd = runner.get_cmd()
-  if runner.uses_query_subcommand() then
-    table.insert(cmd, "query")
-  end
+  table.insert(cmd, "query")
   table.insert(cmd, "--schema")
   table.insert(cmd, "-")
 
