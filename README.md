@@ -51,6 +51,41 @@ Current release targets:
 Each archive contains the `sqlazo` binary, plus `README.md` and `LICENSE` when
 present.
 
+## Install from GitHub Release
+
+Download the archive for your platform from the
+[latest GitHub release](https://github.com/angoru/sqlazo/releases/latest), then
+place the `sqlazo` binary somewhere in your `PATH`.
+
+For Linux x86_64 GNU:
+
+```bash
+VERSION=v0.2.1
+TARGET=linux-x86_64-gnu
+
+mkdir -p ~/.local/bin /tmp/sqlazo-install
+cd /tmp/sqlazo-install
+
+curl -L -o sqlazo.tar.gz \
+  "https://github.com/angoru/sqlazo/releases/download/${VERSION}/sqlazo-${VERSION}-${TARGET}.tar.gz"
+
+tar -xzf sqlazo.tar.gz
+chmod +x "sqlazo-${VERSION}-${TARGET}/sqlazo"
+cp "sqlazo-${VERSION}-${TARGET}/sqlazo" ~/.local/bin/
+
+sqlazo --version
+```
+
+If `sqlazo` is not found, add `~/.local/bin` to your shell `PATH`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+For macOS or another Linux architecture, keep the same commands and replace
+`TARGET` with one of the release targets listed above. Windows releases are
+distributed as `.zip` archives and contain `sqlazo.exe`.
+
 ## CLI Surface
 
 The Rust CLI intentionally implements the process API used by the Neovim plugin:
@@ -106,9 +141,17 @@ Supported environment variables:
 
 ## Neovim
 
+Clone this repository somewhere stable:
+
+```bash
+git clone https://github.com/angoru/sqlazo.git ~/.local/share/sqlazo
+```
+
+Then load the plugin from the `nvim/` subdirectory. Example with `lazy.nvim`:
+
 ```lua
 {
-  dir = "/path/to/sqlazo/nvim",
+  dir = vim.fn.expand("~/.local/share/sqlazo/nvim"),
   ft = { "sql", "mysql", "pgsql", "psql", "sqlite" },
   config = function()
     require("sqlazo").setup({
