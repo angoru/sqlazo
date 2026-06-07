@@ -2,7 +2,7 @@
 
 local M = {}
 
-M.version = "0.1.1"
+M.version = "0.2.3"
 
 local config = require("sqlazo.config")
 local commands = require("sqlazo.commands")

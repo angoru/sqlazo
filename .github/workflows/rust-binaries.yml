@@ -43,9 +43,27 @@ jobs:
       - name: Test
         run: cargo test --locked --all-features
 
+  lua-test:
+    name: Neovim plugin tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Run Lua tests
+        run: nvim --headless -u NONE -l tests/nvim/run.lua
+
   build:
     name: Build ${{ matrix.name }}
-    needs: test
+    needs: [test, lua-test]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write

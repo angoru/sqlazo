@@ -11,22 +11,47 @@ local function stringify(value)
   return tostring(value)
 end
 
+-- Flatten a value to a single buffer line: newlines/tabs break either
+-- nvim_buf_set_lines (no newlines allowed) or column alignment. Each control
+-- char maps to one space so the displayed width stays consistent.
+local function display(value)
+  return (stringify(value):gsub("[\r\n\t]", " "))
+end
+
 local function set_register(name, value)
   pcall(vim.fn.setreg, name, value)
 end
 
 local function cell_bounds(buf, row, col)
   local meta = vim.b[buf].sqlazo_result_meta
-  if not meta or not meta.widths then
+  local result = vim.b[buf].sqlazo_result
+  if not meta or not meta.widths or not result then
+    return nil
+  end
+  local values = (result.rows or {})[row]
+  if not values then
     return nil
   end
 
-  local line = meta.first_data_line + row - 1
-  local start_col = 1
-  for i = 1, col - 1 do
-    start_col = start_col + meta.widths[i] + 3
+  -- Highlight uses byte columns, but widths are screen widths. Walk the actual
+  -- row to accumulate real byte offsets so multibyte cells stay aligned.
+  local function pad_for(i, text)
+    local pad = (meta.widths[i] or 0) - vim.fn.strdisplaywidth(text)
+    return pad < 0 and 0 or pad
   end
-  return line, start_col, start_col + meta.widths[col] + 1
+
+  local line = meta.first_data_line + row - 1
+  local partstart = 1 -- byte just after the leading "|"
+  for i = 1, col - 1 do
+    local text = display(values[i])
+    -- part = " " text pad " " (bytes: #text + pad + 2), then a "|" separator
+    partstart = partstart + #text + pad_for(i, text) + 2 + 1
+  end
+
+  local text = display(values[col])
+  local start_col = partstart + 1 -- skip the leading space, at content start
+  local end_col = start_col + #text + pad_for(col, text)
+  return line, start_col, end_col
 end
 
 local function clamp_selection(buf)
@@ -122,11 +147,11 @@ local function render_table(result)
 
   local widths = {}
   for i, column in ipairs(columns) do
-    widths[i] = #stringify(column)
+    widths[i] = vim.fn.strdisplaywidth(display(column))
   end
   for _, row in ipairs(rows) do
     for i, value in ipairs(row) do
-      widths[i] = math.max(widths[i] or 0, #stringify(value))
+      widths[i] = math.max(widths[i] or 0, vim.fn.strdisplaywidth(display(value)))
     end
   end
 
@@ -141,7 +166,14 @@ local function render_table(result)
   local function row_line(values)
     local parts = {}
     for i, value in ipairs(values) do
-      table.insert(parts, " " .. string.format("%-" .. widths[i] .. "s", stringify(value)) .. " ")
+      -- Pad by screen width (not byte length) so multibyte UTF-8 cells align,
+      -- and pad manually because string.format width is capped at 2 digits.
+      local text = display(value)
+      local pad = (widths[i] or 0) - vim.fn.strdisplaywidth(text)
+      if pad < 0 then
+        pad = 0
+      end
+      table.insert(parts, " " .. text .. string.rep(" ", pad) .. " ")
     end
     return "|" .. table.concat(parts, "|") .. "|"
   end

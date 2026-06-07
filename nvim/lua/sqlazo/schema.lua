@@ -78,31 +78,105 @@ local function cache_key(lines)
   return table.concat(parts, "\n")
 end
 
-function M.get(force_refresh)
-  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  local key = cache_key(lines)
-  if not force_refresh and M.cache[key] then
-    return M.cache[key]
-  end
+local loading = {}
 
-  local content = table.concat(parser.get_header(lines), "\n") .. "\n\nSELECT 1;"
+local function build_schema_content(lines)
+  return table.concat(parser.get_header(lines), "\n") .. "\n\nSELECT 1;"
+end
+
+local function schema_cmd()
   local cmd = runner.get_cmd()
   table.insert(cmd, "query")
   table.insert(cmd, "--schema")
   table.insert(cmd, "-")
+  return cmd
+end
 
-  local output = vim.fn.system(cmd, content)
-  if vim.v.shell_error ~= 0 then
-    return nil, output
+-- Load the schema without blocking the editor. The Rust binary connects to the
+-- database, which can take a while (especially over the network), so we never
+-- run it synchronously on the typing hot path.
+local function load_async(key, content, on_done)
+  if M.cache[key] then
+    if on_done then
+      on_done(M.cache[key])
+    end
+    return
+  end
+  if loading[key] then
+    return
+  end
+  loading[key] = true
+
+  local function finish(code, output)
+    loading[key] = nil
+    if code == 0 and output and output ~= "" then
+      local ok, schema = pcall(vim.json.decode, output)
+      if ok and type(schema) == "table" then
+        M.cache[key] = schema
+      end
+    end
+    if on_done then
+      on_done(M.cache[key])
+    end
   end
 
-  local ok, schema = pcall(vim.json.decode, output)
-  if not ok then
-    return nil, tostring(schema)
+  local cmd = schema_cmd()
+
+  if vim.system then
+    vim.system(cmd, { stdin = content, text = true }, function(obj)
+      vim.schedule(function()
+        finish(obj.code, obj.stdout)
+      end)
+    end)
+    return
   end
 
-  M.cache[key] = schema
-  return schema
+  local chunks = {}
+  local job = vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    on_stdout = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          table.insert(chunks, line)
+        end
+      end
+    end,
+    on_exit = function(_, code)
+      finish(code, table.concat(chunks, "\n"))
+    end,
+  })
+  if job <= 0 then
+    loading[key] = nil
+    if on_done then
+      on_done(nil)
+    end
+    return
+  end
+  vim.fn.chansend(job, content)
+  vim.fn.chanclose(job, "stdin")
+end
+
+-- Returns the cached schema if available; otherwise kicks off an async load and
+-- returns nil. When provided, on_ready fires once the load completes.
+function M.get(force_refresh, on_ready)
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local key = cache_key(lines)
+  if force_refresh then
+    M.cache[key] = nil
+  end
+  if M.cache[key] then
+    return M.cache[key]
+  end
+  load_async(key, build_schema_content(lines), on_ready)
+  return nil
+end
+
+-- Warm the cache ahead of time (e.g. on buffer enter) so the first completion
+-- is served synchronously from cache.
+function M.prime()
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local key = cache_key(lines)
+  load_async(key, build_schema_content(lines))
 end
 
 local function clean_name(name)
@@ -195,11 +269,17 @@ local function column_items(schema, statement, table_name)
       local key = col.name:lower()
       if not seen[key] then
         seen[key] = true
+        local is_key = type(col.key) == "string" and col.key ~= ""
+        local detail = base_name(name) .. " | " .. (col.type or "")
+        if is_key then
+          detail = detail .. " | " .. col.key
+        end
         table.insert(items, {
           label = col.name,
           insertText = col.name,
           kind = 5,
-          detail = base_name(name) .. " | " .. (col.type or ""),
+          detail = detail,
+          sortText = (is_key and "0_" or "1_") .. col.name,
         })
       end
     end
@@ -222,7 +302,10 @@ local function completion_context(cursor_before)
     upper:match("%f[%a]AND%s+[%w_]*$") or
     upper:match("%f[%a]OR%s+[%w_]*$") or
     upper:match("%f[%a]ON%f[%A].*$") or
-    upper:match("%f[%a]ORDER%s+BY%f[%A].*$") then
+    upper:match("%f[%a]GROUP%s+BY%f[%A].*$") or
+    upper:match("%f[%a]HAVING%f[%A].*$") or
+    upper:match("%f[%a]ORDER%s+BY%f[%A].*$") or
+    (upper:match("^SELECT%f[%A].*$") and not upper:match("%f[%a]FROM%f[%A]")) then
     return "column"
   end
   return "none"
@@ -244,9 +327,20 @@ function M.get_cmp_source()
   end
 
   source.complete = function(_, params, callback)
-    local schema = M.get()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local schema = M.get(false, function(loaded)
+      -- The schema finished loading asynchronously; re-trigger so the now-warm
+      -- cache is used, as long as we are still typing in the same buffer.
+      if loaded and vim.api.nvim_get_current_buf() == bufnr and vim.fn.mode() == "i" then
+        local cmp_ok, cmp = pcall(require, "cmp")
+        if cmp_ok then
+          cmp.complete()
+        end
+      end
+    end)
     if not schema then
-      callback({ items = {}, isIncomplete = false })
+      -- isIncomplete keeps cmp asking until the async load populates the cache.
+      callback({ items = {}, isIncomplete = true })
       return
     end
 
@@ -292,8 +386,12 @@ local function patch_cmp_source(cmp)
   cmp.setup({ sources = sources })
 end
 
+local function is_sql_buffer()
+  return (config.get().comment_prefix_by_filetype or {})[vim.bo.filetype] ~= nil
+end
+
 local function should_trigger_completion()
-  if (config.get().comment_prefix_by_filetype or {})[vim.bo.filetype] == nil then
+  if not is_sql_buffer() then
     return false
   end
 
@@ -301,22 +399,51 @@ local function should_trigger_completion()
   return context == "table" or context == "column" or context == "qualified"
 end
 
+local debounce_timer
+
 local function setup_context_trigger(cmp)
   local group = vim.api.nvim_create_augroup("sqlazo_cmp_context_trigger", { clear = true })
   vim.api.nvim_create_autocmd("TextChangedI", {
     group = group,
     callback = function()
-      if vim.fn.mode() ~= "i" or not should_trigger_completion() then
-        return
+      -- Debounce: only evaluate the (regex-heavy) context and ask cmp to
+      -- complete after the user pauses, instead of on every keystroke.
+      if debounce_timer then
+        debounce_timer:stop()
+        debounce_timer:close()
+        debounce_timer = nil
       end
 
-      cmp.complete({
-        config = {
-          sources = {
-            { name = "sqlazo", keyword_length = 0, priority = 1000 },
+      local delay = config.get().schema_debounce_ms or 100
+      debounce_timer = vim.defer_fn(function()
+        debounce_timer = nil
+        if vim.fn.mode() ~= "i" or not should_trigger_completion() then
+          return
+        end
+
+        cmp.complete({
+          config = {
+            sources = {
+              { name = "sqlazo", keyword_length = 0, priority = 1000 },
+            },
           },
-        },
-      })
+        })
+      end, delay)
+    end,
+  })
+end
+
+local function setup_prime_trigger()
+  if config.get().schema_prime_on_enter == false then
+    return
+  end
+  local group = vim.api.nvim_create_augroup("sqlazo_cmp_prime", { clear = true })
+  vim.api.nvim_create_autocmd({ "BufEnter", "FileType" }, {
+    group = group,
+    callback = function()
+      if is_sql_buffer() then
+        M.prime()
+      end
     end,
   })
 end
@@ -330,7 +457,17 @@ function M.setup_cmp()
   cmp.register_source("sqlazo", M.get_cmp_source().new())
   patch_cmp_source(cmp)
   setup_context_trigger(cmp)
+  setup_prime_trigger()
   return true
 end
+
+-- Exposed for tests only.
+M._internal = {
+  completion_context = completion_context,
+  referenced_tables = referenced_tables,
+  table_aliases = table_aliases,
+  column_items = column_items,
+  table_items = table_items,
+}
 
 return M

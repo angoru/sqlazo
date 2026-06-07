@@ -60,7 +60,7 @@ place the `sqlazo` binary somewhere in your `PATH`.
 For Linux x86_64 GNU:
 
 ```bash
-VERSION=v0.2.2
+VERSION=v0.2.3
 TARGET=linux-x86_64-gnu
 
 mkdir -p ~/.local/bin /tmp/sqlazo-install
@@ -187,5 +187,15 @@ require("cmp").setup({
 require("sqlazo").setup_cmp()
 ```
 
-Autocomplete suggests tables after `FROM`/`JOIN` and fields from referenced
-tables in `WHERE`, `AND`, `OR`, `ON`, and `ORDER BY`.
+Autocomplete suggests tables after `FROM`/`JOIN` and columns from referenced
+tables in the `SELECT` list and in `WHERE`, `AND`, `OR`, `ON`, `GROUP BY`,
+`HAVING`, and `ORDER BY`. Primary/unique key columns are marked and sorted first.
+The schema is loaded asynchronously (no editor freeze) and completion is
+debounced. Both are configurable:
+
+```lua
+require("sqlazo").setup({
+  schema_debounce_ms = 100,   -- delay before context-triggered completion
+  schema_prime_on_enter = true, -- warm the schema cache when opening a SQL buffer
+})
+```
