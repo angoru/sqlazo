@@ -60,7 +60,7 @@ place the `sqlazo` binary somewhere in your `PATH`.
 For Linux x86_64 GNU:
 
 ```bash
-VERSION=v0.2.1
+VERSION=v0.2.2
 TARGET=linux-x86_64-gnu
 
 mkdir -p ~/.local/bin /tmp/sqlazo-install
